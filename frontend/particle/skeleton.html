@@ -28,7 +28,6 @@
             width: 100%;
             height: 100%;
             transform: scaleX(-1);
-            /* Mirror the video */
         }
 
         #canvas-container {
@@ -46,25 +45,37 @@
             font-size: 24px;
             pointer-events: none;
         }
+
+        #toggle-skeleton {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background: rgba(0, 255, 136, 0.8);
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            font-family: sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10;
+            transition: background 0.3s;
+        }
+
+        #toggle-skeleton:hover {
+            background: rgba(0, 255, 136, 1);
+        }
     </style>
 </head>
 
 <body>
     <div id="loading">Loading MediaPipe Pose...</div>
-
-    <!-- Video input for MediaPipe -->
     <div id="video-container">
-        <video id="input-video" playsinline></video>
+        <video id="input-video" autoplay playsinline></video>
     </div>
-
-    <!-- Three.js Canvas -->
     <div id="canvas-container"></div>
-
-    <!-- MediaPipe Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-
-    <!-- Import Map for Three.js -->
+    <button id="toggle-skeleton">Hide Skeleton</button>
     <script type="importmap">
         {
             "imports": {
@@ -73,9 +84,7 @@
             }
         }
     </script>
-
-    <!-- Main Logic -->
-    <script type="module" src="./js/skeleton.js"></script>
+    <script type="module" src="./js/skeleton.js?v=3"></script>
 </body>
 
 </html>

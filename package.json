@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Interactive fog-like human visualization art project",
   "scripts": {
-    "serve": "python -m http.server 8080 --directory frontend",
+    "serve": "python -m http.server 8080 --directory frontend/particle",
     "backend": "cd backend && python app.py",
     "dev": "echo 'Please run backend and frontend separately'"
   },
