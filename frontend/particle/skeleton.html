@@ -66,6 +66,69 @@
         #toggle-skeleton:hover {
             background: rgba(0, 255, 136, 1);
         }
+
+        #toggle-particles {
+            position: absolute;
+            bottom: 20px;
+            left: 170px;
+            padding: 10px 20px;
+            background: rgba(0, 136, 255, 0.8);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-family: sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10;
+            transition: background 0.3s;
+        }
+
+        #toggle-particles:hover {
+            background: rgba(0, 136, 255, 1);
+        }
+
+        #toggle-camera {
+            position: absolute;
+            bottom: 20px;
+            left: 320px;
+            padding: 10px 20px;
+            background: rgba(255, 136, 0, 0.8);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-family: sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10;
+            transition: background 0.3s;
+        }
+
+        #toggle-camera:hover {
+            background: rgba(255, 136, 0, 1);
+        }
+
+        #toggle-santa {
+            position: absolute;
+            bottom: 20px;
+            left: 470px;
+            padding: 10px 20px;
+            background: rgba(255, 0, 0, 0.8);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-family: sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10;
+            transition: background 0.3s;
+        }
+
+        #toggle-santa:hover {
+            background: rgba(255, 0, 0, 1);
+        }
     </style>
 </head>
 
@@ -76,6 +139,9 @@
     </div>
     <div id="canvas-container"></div>
     <button id="toggle-skeleton">Hide Skeleton</button>
+    <button id="toggle-particles">Hide Particles</button>
+    <button id="toggle-camera">Hide Camera</button>
+    <button id="toggle-santa">Santa Mode</button>
     <script type="importmap">
         {
             "imports": {

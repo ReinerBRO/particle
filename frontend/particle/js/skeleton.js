@@ -3,6 +3,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { SnowEffect } from './snow.js';
+import { ChristmasTree } from './christmasTree.js';
+import { GiftBox } from './giftBox.js';
+import { SantaCharacter } from './santa.js';
 
 // Configurationss
 const VIDEO_WIDTH = 640;
@@ -16,6 +20,8 @@ const loadingElement = document.getElementById('loading');
 // Three.js Globals
 let scene, camera, renderer, controls;
 let composer;
+let snowEffect;
+let christmasTree;
 
 // Multi-Person Globals
 const MAX_CHARACTERS = 2;
@@ -58,9 +64,14 @@ class AuraCharacter {
 
         this.landmarksMap = {};
         this.particleSystem = null;
+        this.giftBox = null;
+        this.santa = null;
+        this.mode = 'particle'; // 'particle' or 'santa'
 
         this.initSkeleton();
         this.createParticleSystem();
+        this.initGiftBox();
+        this.initSanta();
     }
 
     initSkeleton() {
@@ -123,29 +134,6 @@ class AuraCharacter {
 
             // 50% chance to be in torso volume
             if (Math.random() < 0.5) {
-                types[i] = 1; // Torso
-                targetIndices[i] = Math.floor(Math.random() * TORSO_TRIANGLES.length);
-
-                // Random barycentric coordinates
-                let u = Math.random();
-                let v = Math.random();
-                if (u + v > 1) {
-                    u = 1 - u;
-                    v = 1 - v;
-                }
-                lerpFactors[i * 2] = u;
-                lerpFactors[i * 2 + 1] = v;
-
-                // Thicker volume for torso
-                const thicknessXY = 0.5;
-                const thicknessZ = 0.8;
-
-                randomOffsets[i * 3] = (Math.random() - 0.5) * thicknessXY;
-                randomOffsets[i * 3 + 1] = (Math.random() - 0.5) * thicknessXY;
-                randomOffsets[i * 3 + 2] = (Math.random() - 0.5) * thicknessZ;
-
-            } else {
-                types[i] = 0; // Bone
                 targetIndices[i] = Math.floor(Math.random() * POSE_CONNECTIONS.length);
                 lerpFactors[i * 2] = Math.random(); // t
 
@@ -200,25 +188,52 @@ class AuraCharacter {
         this.group.add(this.particleSystem);
     }
 
+    initGiftBox() {
+        this.giftBox = new GiftBox(this.scene);
+    }
+
+    initSanta() {
+        this.santa = new SantaCharacter(this.scene);
+        this.santa.setVisible(false);
+    }
+
+    setMode(mode) {
+        this.mode = mode;
+        if (mode === 'particle') {
+            if (this.particleSystem) this.particleSystem.visible = true;
+            if (this.santa) this.santa.setVisible(false);
+        } else if (mode === 'santa') {
+            if (this.particleSystem) this.particleSystem.visible = false;
+            if (this.santa) this.santa.setVisible(true);
+        }
+    }
+
     update(landmarks) {
         this.visible = true;
         this.group.visible = true;
 
-        // Update Joints
+        // Update based on mode
+        if (this.mode === 'particle') {
+            this.updateParticles(landmarks);
+        } else if (this.mode === 'santa') {
+            if (this.santa) {
+                this.santa.update(landmarks);
+            }
+        }
+
+        // Common updates: Skeleton Debug View (respects showSkeleton flag)
         landmarks.forEach((landmark, index) => {
             const sphere = this.landmarksMap[index];
             if (sphere) {
-                // MediaPipe coordinates: x (0-1), y (0-1), z (approx meters)
-                const x = (0.5 - landmark.x) * 2; // Center at 0
-                const y = (1 - landmark.y) * 2;   // Flip Y, scale
-                const z = -landmark.z;            // Flip Z
+                const x = (0.5 - landmark.x) * 2;
+                const y = (1 - landmark.y) * 2;
+                const z = -landmark.z;
 
                 sphere.position.set(x, y, z);
                 sphere.visible = this.showSkeleton;
             }
         });
 
-        // Update Connections
         this.group.children.forEach(child => {
             if (child instanceof THREE.Line) {
                 const startIdx = child.userData.start;
@@ -247,14 +262,23 @@ class AuraCharacter {
             }
         });
 
-        this.updateParticles();
+        // Update gift box based on hand gesture
+        if (this.giftBox) {
+            this.giftBox.update(landmarks);
+        }
     }
 
     toggleSkeleton(show) {
         this.showSkeleton = show;
     }
 
-    updateParticles() {
+    toggleParticles(show) {
+        if (this.particleSystem) {
+            this.particleSystem.visible = show;
+        }
+    }
+
+    updateParticles(landmarks) {
         if (!this.particleSystem) return;
 
         const positions = this.particleSystem.geometry.attributes.position.array;
@@ -331,6 +355,11 @@ class AuraCharacter {
     hide() {
         this.visible = false;
         this.group.visible = false;
+
+        // Hide gift box when character is hidden
+        if (this.giftBox) {
+            this.giftBox.hide();
+        }
     }
 }
 
@@ -395,6 +424,12 @@ function initThreeJS() {
     composer.addPass(renderScene);
     composer.addPass(bloomPass);
 
+    // Snow Effect
+    snowEffect = new SnowEffect(scene);
+
+    // Christmas Tree
+    christmasTree = new ChristmasTree(scene);
+
     // Handle Window Resize
     window.addEventListener('resize', onWindowResize, false);
 
@@ -412,6 +447,16 @@ function onWindowResize() {
 function animate() {
     requestAnimationFrame(animate);
     controls.update();
+
+    // Update snow effect
+    if (snowEffect) {
+        snowEffect.update();
+    }
+
+    // Update Christmas tree
+    if (christmasTree) {
+        christmasTree.update(Date.now() * 0.001);
+    }
 
     // Render MediaPipe
     if (poseLandmarker && videoElement.currentTime !== lastVideoTime) {
@@ -504,4 +549,36 @@ toggleButton.addEventListener('click', () => {
     skeletonVisible = !skeletonVisible;
     characters.forEach(char => char.toggleSkeleton(skeletonVisible));
     toggleButton.textContent = skeletonVisible ? 'Hide Skeleton' : 'Show Skeleton';
+});
+
+// Toggle particles visibility
+const toggleParticlesButton = document.getElementById('toggle-particles');
+let particlesVisible = true;
+
+toggleParticlesButton.addEventListener('click', () => {
+    particlesVisible = !particlesVisible;
+    characters.forEach(char => char.toggleParticles(particlesVisible));
+    toggleParticlesButton.textContent = particlesVisible ? 'Hide Particles' : 'Show Particles';
+});
+
+// Toggle camera visibility
+const toggleCameraButton = document.getElementById('toggle-camera');
+const videoContainer = document.getElementById('video-container');
+let cameraVisible = true;
+
+toggleCameraButton.addEventListener('click', () => {
+    cameraVisible = !cameraVisible;
+    videoContainer.style.display = cameraVisible ? 'block' : 'none';
+    toggleCameraButton.textContent = cameraVisible ? 'Hide Camera' : 'Show Camera';
+});
+
+// Toggle Santa Mode
+const toggleSantaButton = document.getElementById('toggle-santa');
+let isSantaMode = false;
+
+toggleSantaButton.addEventListener('click', () => {
+    isSantaMode = !isSantaMode;
+    const mode = isSantaMode ? 'santa' : 'particle';
+    characters.forEach(char => char.setMode(mode));
+    toggleSantaButton.textContent = isSantaMode ? 'Particle Mode' : 'Santa Mode';
 });
