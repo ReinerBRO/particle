@@ -5,14 +5,16 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
  * 可用的 3D 模型列表
  */
 export const AVAILABLE_MODELS = [
+    { id: 'angel_devil', name: 'Angel Devil', path: '/models/angel_devil/scene.gltf' },
     { id: 'christmas_elf', name: 'Christmas Elf', path: '/models/christmas_elf/scene.gltf' },
-    { id: 'gingy', name: 'Gingy', path: '/models/gingy_the_gingebread_man/scene.gltf' },
-    { id: 'gingerbread_man', name: 'Gingerbread Man', path: '/models/gingerbread_man/scene.gltf' },
-    { id: 'gingerbread_man_alt', name: 'Gingerbread Man Alt', path: '/models/gingerbread_man (1)/scene.gltf' },
+    { id: 'ginger_cookies', name: 'Ginger Cookies', path: '/models/christmas_ginger_bread_cookies/scene.gltf' },
     { id: 'gingerbread_joy', name: 'Gingerbread Joy', path: '/models/gingerbread_joy/scene.gltf' },
     { id: 'gingerbread_joy_alt', name: 'Gingerbread Joy Alt', path: '/models/gingerbread_joy (1)/scene.gltf' },
-    { id: 'ginger_cookies', name: 'Ginger Cookies', path: '/models/christmas_ginger_bread_cookies/scene.gltf' },
+    { id: 'gingerbread_man', name: 'Gingerbread Man', path: '/models/gingerbread_man/scene.gltf' },
+    { id: 'gingerbread_man_alt', name: 'Gingerbread Man Alt', path: '/models/gingerbread_man (1)/scene.gltf' },
+    { id: 'gingy', name: 'Gingy', path: '/models/gingy_the_gingebread_man/scene.gltf' },
     { id: 'shrek_gingy', name: 'Shrek Gingy', path: '/models/shrek_2_gingerbread_man/scene.gltf' },
+    { id: 'varia_suit', name: 'Varia Suit', path: '/models/varia_suit/scene.gltf' },
 ];
 
 /**
@@ -35,14 +37,23 @@ const LANDMARKS = {
     LEFT_KNEE: 25,
     RIGHT_KNEE: 26,
     LEFT_ANKLE: 27,
-    RIGHT_ANKLE: 28
+    RIGHT_ANKLE: 28,
+    LEFT_INDEX: 19,
+    RIGHT_INDEX: 20,
+    LEFT_FOOT_INDEX: 31,
+    RIGHT_FOOT_INDEX: 32
 };
 
 /**
  * 圣诞树高度常量（用于计算模型目标高度）
  */
 const TREE_HEIGHT = 3.6;
-const TARGET_MODEL_HEIGHT = TREE_HEIGHT * 0.75;
+const TARGET_MODEL_HEIGHT = TREE_HEIGHT * 0.5; // 模型高度为圣诞树的一半
+
+/**
+ * 水平移动比例系数 - 放大人物在虚拟空间中的移动距离
+ */
+const HORIZONTAL_MOVEMENT_SCALE = 4.5; // 水平移动放大倍数
 
 /**
  * 骨骼名称别名映射
@@ -176,6 +187,12 @@ export class ModelCharacter {
             return;
         }
 
+        // 检查是否是程序化模型
+        if (!modelInfo.path) {
+            this._createProceduralModel(modelId);
+            return;
+        }
+
         // 创建加载 Promise 并缓存
         this.loadingPromises[modelId] = this._loadModelAsync(modelId, modelInfo);
         
@@ -225,8 +242,12 @@ export class ModelCharacter {
             this.hasSkeleton = false;
             this.restPose = {};
             this.findAndMapBones(newModel);
+            
+            // 调整特定模型的材质亮度
+            this.adjustModelMaterials(newModel, modelId);
 
             // 添加到组并缓存
+            newModel.visible = false; // 新加载的模型默认隐藏
             this.group.add(newModel);
             this.modelCache[modelId] = newModel;
             this.skeletonCache[modelId] = {
@@ -243,6 +264,198 @@ export class ModelCharacter {
             console.error('Failed to load model:', modelId, error);
             throw error;
         }
+    }
+
+    /**
+     * 创建程序化模型
+     */
+    _createProceduralModel(modelId) {
+        const group = new THREE.Group();
+        this.bones = {};
+        this.restPose = {};
+        this.hasSkeleton = true;
+
+        // Define materials based on modelId
+        let bodyMat, limbMat, jointMat, headMat, hatMat, bootMat;
+        
+        if (modelId === 'santa') {
+            bodyMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.8 }); // Red suit
+            limbMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.8 }); // Red suit
+            jointMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }); // White trim
+            headMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.5 }); // Skin
+            hatMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.8 }); // Red hat
+            bootMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 }); // Black boots
+        } else if (modelId === 'goblin') {
+            bodyMat = new THREE.MeshStandardMaterial({ color: 0x654321, roughness: 0.9 }); // Brown clothes
+            limbMat = new THREE.MeshStandardMaterial({ color: 0x556b2f, roughness: 0.6 }); // Green skin
+            jointMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.8 }); // Leather joints
+            headMat = new THREE.MeshStandardMaterial({ color: 0x556b2f, roughness: 0.6 }); // Green skin
+            hatMat = new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.8 }); // Green hat
+            bootMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.8 }); // Dark boots
+        } else {
+            // Default / Box Man / Stick Man
+            bodyMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, roughness: 0.5, metalness: 0.5 });
+            limbMat = bodyMat;
+            jointMat = new THREE.MeshStandardMaterial({ color: 0xff0088, roughness: 0.5 });
+            headMat = bodyMat;
+            hatMat = jointMat;
+            bootMat = bodyMat;
+        }
+
+        // Helper to create bone
+        const createBone = (name, parent, size, pos, rot = null, customMat = null) => {
+            const boneGroup = new THREE.Group();
+            boneGroup.name = name;
+            if (pos) boneGroup.position.copy(pos);
+            if (rot) boneGroup.rotation.setFromVector3(rot);
+            
+            if (parent) parent.add(boneGroup);
+            else group.add(boneGroup);
+
+            // Visual mesh
+            if (size) {
+                let geometry;
+                if (modelId === 'box_man') {
+                    geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+                } else if (modelId === 'santa' && name === 'chest') {
+                    // Santa's belly
+                    geometry = new THREE.SphereGeometry(size.x * 0.8, 16, 16);
+                    geometry.scale(1, 1.2, 0.8);
+                } else if (modelId === 'santa' && name === 'spine') {
+                    geometry = new THREE.CylinderGeometry(size.x * 0.6, size.x * 0.5, size.y, 16);
+                } else {
+                    geometry = new THREE.CylinderGeometry(size.x/2, size.x/2, size.y, 8);
+                }
+                
+                // Adjust geometry center so pivot is at one end if needed
+                // For limbs, we usually want pivot at top
+                if (name.includes('Arm') || name.includes('Leg')) {
+                    geometry.translate(0, -size.y / 2, 0);
+                } else if (name === 'head') {
+                    geometry.translate(0, size.y / 2, 0);
+                } else if (name === 'spine' || name === 'chest') {
+                    geometry.translate(0, size.y / 2, 0);
+                }
+
+                const mat = customMat || (name.includes('Arm') || name.includes('Leg') ? limbMat : bodyMat);
+                // Special case for boots/hands
+                const finalMat = (name.includes('Foot') || name.includes('Hand')) && (modelId === 'santa' || modelId === 'goblin') ? bootMat : mat;
+                // Special case for head
+                const headMaterial = (name === 'head') ? headMat : finalMat;
+
+                const mesh = new THREE.Mesh(geometry, headMaterial);
+                boneGroup.add(mesh);
+
+                // Joint visual
+                if (modelId !== 'box_man') {
+                    const jointGeo = new THREE.SphereGeometry(size.x * 0.6);
+                    const joint = new THREE.Mesh(jointGeo, jointMat);
+                    boneGroup.add(joint);
+                }
+
+                // Add Hat for Santa/Goblin
+                if (name === 'head' && (modelId === 'santa' || modelId === 'goblin')) {
+                    const hatGeo = new THREE.ConeGeometry(size.x * 0.8, size.y * 0.8, 16);
+                    hatGeo.translate(0, size.y + size.y * 0.4, -size.z * 0.2);
+                    hatGeo.rotateX(-0.2);
+                    const hat = new THREE.Mesh(hatGeo, hatMat);
+                    boneGroup.add(hat);
+                    
+                    // Pom-pom for Santa
+                    if (modelId === 'santa') {
+                        const pomGeo = new THREE.SphereGeometry(size.x * 0.2);
+                        pomGeo.translate(0, size.y * 1.8, -size.z * 0.2); // Approximate tip position
+                        const pom = new THREE.Mesh(pomGeo, jointMat); // White
+                        boneGroup.add(pom);
+                    }
+                }
+            }
+
+            this.bones[name] = boneGroup;
+            this.restPose[name] = {
+                position: boneGroup.position.clone(),
+                quaternion: boneGroup.quaternion.clone()
+            };
+
+            return boneGroup;
+        };
+
+        // Build Hierarchy
+        // Hips (Root)
+        const hips = createBone('hips', null, {x: 0.3, y: 0.15, z: 0.2}, new THREE.Vector3(0, 1.0, 0));
+
+        // Spine Chain
+        const spine = createBone('spine', hips, {x: 0.25, y: 0.2, z: 0.15}, new THREE.Vector3(0, 0.1, 0));
+        const chest = createBone('chest', spine, {x: 0.35, y: 0.25, z: 0.2}, new THREE.Vector3(0, 0.2, 0));
+        const neck = createBone('neck', chest, {x: 0.1, y: 0.1, z: 0.1}, new THREE.Vector3(0, 0.25, 0));
+        const head = createBone('head', neck, {x: 0.2, y: 0.25, z: 0.22}, new THREE.Vector3(0, 0.1, 0));
+
+        // Arms
+        const shoulderWidth = 0.2;
+        const armLength = 0.35;
+        const armThick = 0.08;
+
+        // Left Arm
+        const lShoulder = createBone('leftShoulder', chest, null, new THREE.Vector3(-shoulderWidth, 0.2, 0));
+        
+        const lArmGroup = createBone('leftUpperArm', lShoulder, {x: armThick, y: armLength, z: armThick}, new THREE.Vector3(0, 0, 0));
+        lArmGroup.rotation.z = -Math.PI / 2; // Point Left (-X)
+        this.restPose['leftUpperArm'].quaternion.copy(lArmGroup.quaternion);
+
+        const lForeArm = createBone('leftForeArm', lArmGroup, {x: armThick*0.8, y: armLength, z: armThick*0.8}, new THREE.Vector3(0, -armLength, 0));
+        
+        // Right Arm
+        const rShoulder = createBone('rightShoulder', chest, null, new THREE.Vector3(shoulderWidth, 0.2, 0));
+        const rArmGroup = createBone('rightUpperArm', rShoulder, {x: armThick, y: armLength, z: armThick}, new THREE.Vector3(0, 0, 0));
+        rArmGroup.rotation.z = Math.PI / 2; // Point Right (+X)
+        this.restPose['rightUpperArm'].quaternion.copy(rArmGroup.quaternion);
+
+        const rForeArm = createBone('rightForeArm', rArmGroup, {x: armThick*0.8, y: armLength, z: armThick*0.8}, new THREE.Vector3(0, -armLength, 0));
+
+        // Hands
+        createBone('leftHand', lForeArm, {x: 0.08, y: 0.1, z: 0.1}, new THREE.Vector3(0, -armLength, 0));
+        createBone('rightHand', rForeArm, {x: 0.08, y: 0.1, z: 0.1}, new THREE.Vector3(0, -armLength, 0));
+
+        // Legs
+        const hipWidth = 0.1;
+        const legLength = 0.45;
+        const legThick = 0.12;
+
+        const lUpLeg = createBone('leftUpLeg', hips, {x: legThick, y: legLength, z: legThick}, new THREE.Vector3(-hipWidth, 0, 0));
+        // Legs point down (-Y). Geometry is vertical. No rotation needed.
+        
+        const lLeg = createBone('leftLeg', lUpLeg, {x: legThick*0.8, y: legLength, z: legThick*0.8}, new THREE.Vector3(0, -legLength, 0));
+        createBone('leftFoot', lLeg, {x: 0.1, y: 0.05, z: 0.2}, new THREE.Vector3(0, -legLength, 0));
+        // Foot geometry needs to point forward (Z).
+        // Our generic box is centered.
+        // Let's adjust foot geometry manually if needed or just accept box.
+
+        const rUpLeg = createBone('rightUpLeg', hips, {x: legThick, y: legLength, z: legThick}, new THREE.Vector3(hipWidth, 0, 0));
+        const rLeg = createBone('rightLeg', rUpLeg, {x: legThick*0.8, y: legLength, z: legThick*0.8}, new THREE.Vector3(0, -legLength, 0));
+        createBone('rightFoot', rLeg, {x: 0.1, y: 0.05, z: 0.2}, new THREE.Vector3(0, -legLength, 0));
+
+        // Scale to match target height
+        const box = new THREE.Box3().setFromObject(group);
+        const size = box.getSize(new THREE.Vector3());
+        
+        // Goblin is smaller
+        let targetHeight = TARGET_MODEL_HEIGHT;
+        if (modelId === 'goblin') targetHeight *= 0.7;
+        
+        const scale = targetHeight / size.y;
+        group.scale.setScalar(scale);
+
+        // Cache and Activate
+        group.visible = false;
+        this.group.add(group);
+        this.modelCache[modelId] = group;
+        this.skeletonCache[modelId] = {
+            bones: { ...this.bones },
+            hasSkeleton: true,
+            restPose: { ...this.restPose }
+        };
+
+        this._activateModel(modelId);
     }
 
     /**
@@ -325,6 +538,51 @@ export class ModelCharacter {
     }
 
     /**
+     * 调整模型材质（降低特定模型的亮度）
+     */
+    adjustModelMaterials(model, modelId) {
+        // 只针对 gingy_the_gingebread_man 文件夹下的模型（id 为 'gingy'）
+        const isGingyModel = modelId === 'gingy';
+        
+        if (isGingyModel) {
+            console.log(`Adjusting brightness for Gingy model: ${modelId}`);
+            
+            model.traverse((object) => {
+                if (object.isMesh && object.material) {
+                    const materials = Array.isArray(object.material) ? object.material : [object.material];
+                    
+                    materials.forEach(mat => {
+                        // 降低自发光
+                        if (mat.emissive) {
+                            mat.emissive.setRGB(0, 0, 0);
+                        }
+                        mat.emissiveIntensity = 0;
+                        
+                        // 降低材质亮度 - 调暗颜色
+                        if (mat.color) {
+                            // 将颜色亮度降低到原来的60%
+                            const hsl = {};
+                            mat.color.getHSL(hsl);
+                            mat.color.setHSL(hsl.h, hsl.s, Math.min(hsl.l * 0.6, 0.5));
+                        }
+                        
+                        // 调整金属度和粗糙度使其更柔和
+                        if (mat.metalness !== undefined) {
+                            mat.metalness = Math.min(mat.metalness, 0.2);
+                        }
+                        if (mat.roughness !== undefined) {
+                            mat.roughness = Math.max(mat.roughness, 0.6);
+                        }
+                        
+                        // 确保材质更新
+                        mat.needsUpdate = true;
+                    });
+                }
+            });
+        }
+    }
+
+    /**
      * 获取关键点位置
      */
     getPos(landmarks, index) {
@@ -393,7 +651,14 @@ export class ModelCharacter {
         const shoulderCenter = new THREE.Vector3().addVectors(leftShoulder, rightShoulder).multiplyScalar(0.5);
         const bodyCenter = new THREE.Vector3().addVectors(hipCenter, shoulderCenter).multiplyScalar(0.5);
 
-        this.targetPosition.copy(bodyCenter);
+        // 应用水平移动比例系数，放大X和Z方向的移动距离
+        const scaledPosition = new THREE.Vector3(
+            bodyCenter.x * HORIZONTAL_MOVEMENT_SCALE,
+            bodyCenter.y,  // Y轴（垂直）保持不变
+            bodyCenter.z * HORIZONTAL_MOVEMENT_SCALE
+        );
+
+        this.targetPosition.copy(scaledPosition);
 
         // 身体朝向
         const shoulderDir = new THREE.Vector3().subVectors(rightShoulder, leftShoulder);
@@ -503,10 +768,12 @@ export class ModelCharacter {
         const shoulderIdx = isLeft ? LANDMARKS.LEFT_SHOULDER : LANDMARKS.RIGHT_SHOULDER;
         const elbowIdx = isLeft ? LANDMARKS.LEFT_ELBOW : LANDMARKS.RIGHT_ELBOW;
         const wristIdx = isLeft ? LANDMARKS.LEFT_WRIST : LANDMARKS.RIGHT_WRIST;
+        const indexIdx = isLeft ? LANDMARKS.LEFT_INDEX : LANDMARKS.RIGHT_INDEX;
 
         const shoulder = this.getPos(landmarks, shoulderIdx);
         const elbow = this.getPos(landmarks, elbowIdx);
         const wrist = this.getPos(landmarks, wristIdx);
+        const indexFinger = this.getPos(landmarks, indexIdx);
 
         if (!shoulder || !elbow || !wrist) return;
 
@@ -530,6 +797,18 @@ export class ModelCharacter {
             const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, foreArmDir);
             this.applyBoneRotation(isLeft ? 'leftForeArm' : 'rightForeArm', quat);
         }
+
+        // 手掌方向
+        if (indexFinger) {
+            const handDir = new THREE.Vector3().subVectors(indexFinger, wrist).normalize();
+            const handBone = this.bones[isLeft ? 'leftHand' : 'rightHand'];
+            
+            if (handBone) {
+                const defaultDir = isLeft ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(1, 0, 0);
+                const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, handDir);
+                this.applyBoneRotation(isLeft ? 'leftHand' : 'rightHand', quat);
+            }
+        }
     }
 
     /**
@@ -540,10 +819,12 @@ export class ModelCharacter {
         const hipIdx = isLeft ? LANDMARKS.LEFT_HIP : LANDMARKS.RIGHT_HIP;
         const kneeIdx = isLeft ? LANDMARKS.LEFT_KNEE : LANDMARKS.RIGHT_KNEE;
         const ankleIdx = isLeft ? LANDMARKS.LEFT_ANKLE : LANDMARKS.RIGHT_ANKLE;
+        const footIdx = isLeft ? LANDMARKS.LEFT_FOOT_INDEX : LANDMARKS.RIGHT_FOOT_INDEX;
 
         const hip = this.getPos(landmarks, hipIdx);
         const knee = this.getPos(landmarks, kneeIdx);
         const ankle = this.getPos(landmarks, ankleIdx);
+        const foot = this.getPos(landmarks, footIdx);
 
         if (!hip || !knee || !ankle) return;
 
@@ -565,6 +846,21 @@ export class ModelCharacter {
             const defaultDir = new THREE.Vector3(0, -1, 0);
             const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, legDir);
             this.applyBoneRotation(isLeft ? 'leftLeg' : 'rightLeg', quat);
+        }
+
+        // 脚部方向
+        if (foot) {
+            const footDir = new THREE.Vector3().subVectors(foot, ankle).normalize();
+            const footBone = this.bones[isLeft ? 'leftFoot' : 'rightFoot'];
+            
+            if (footBone) {
+                // 假设脚部骨骼默认指向前方 (0, 0, 1)
+                // 注意：这取决于模型的初始姿态，有些模型脚部可能指向 (0, -1, 0)
+                // 这里假设标准 T-pose 脚部向前
+                const defaultDir = new THREE.Vector3(0, 0, 1);
+                const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, footDir);
+                this.applyBoneRotation(isLeft ? 'leftFoot' : 'rightFoot', quat);
+            }
         }
     }
 

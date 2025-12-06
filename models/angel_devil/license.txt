@@ -1,0 +1,11 @@
+Model Information:
+* title:	Angel Devil
+* source:	https://sketchfab.com/3d-models/angel-devil-26aec177328d4d5bb4c644e827c523f3
+* author:	Joel Anderson (https://sketchfab.com/joel3d)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Angel Devil" (https://sketchfab.com/3d-models/angel-devil-26aec177328d4d5bb4c644e827c523f3) by Joel Anderson (https://sketchfab.com/joel3d) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

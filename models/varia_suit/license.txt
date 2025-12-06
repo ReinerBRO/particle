@@ -1,0 +1,11 @@
+Model Information:
+* title:	Varia Suit
+* source:	https://sketchfab.com/3d-models/varia-suit-79c802129f9a4945aba62a607892ac31
+* author:	kwstasg (https://sketchfab.com/kwstasg)
+
+Model License:
+* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+* requirements:	Author must be credited. No commercial use.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Varia Suit" (https://sketchfab.com/3d-models/varia-suit-79c802129f9a4945aba62a607892ac31) by kwstasg (https://sketchfab.com/kwstasg) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)

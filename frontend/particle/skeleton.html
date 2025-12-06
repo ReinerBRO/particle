@@ -46,52 +46,10 @@
             pointer-events: none;
         }
 
-        #toggle-skeleton {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            padding: 10px 20px;
-            background: rgba(0, 255, 136, 0.8);
-            color: #000;
-            border: none;
-            border-radius: 5px;
-            font-family: sans-serif;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            z-index: 10;
-            transition: background 0.3s;
-        }
-
-        #toggle-skeleton:hover {
-            background: rgba(0, 255, 136, 1);
-        }
-
-        #toggle-particles {
-            position: absolute;
-            bottom: 20px;
-            left: 170px;
-            padding: 10px 20px;
-            background: rgba(0, 136, 255, 0.8);
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            font-family: sans-serif;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            z-index: 10;
-            transition: background 0.3s;
-        }
-
-        #toggle-particles:hover {
-            background: rgba(0, 136, 255, 1);
-        }
-
         #toggle-camera {
             position: absolute;
             bottom: 20px;
-            left: 320px;
+            left: 20px;
             padding: 10px 20px;
             background: rgba(255, 136, 0, 0.8);
             color: #fff;
@@ -109,46 +67,303 @@
             background: rgba(255, 136, 0, 1);
         }
 
-        #model-select {
+        #mic-btn {
             position: absolute;
             bottom: 20px;
-            left: 470px;
-            padding: 10px 15px;
-            background: rgba(138, 43, 226, 0.8);
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            font-family: sans-serif;
-            font-size: 14px;
-            font-weight: bold;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #888;
             cursor: pointer;
-            z-index: 10;
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
         }
 
-        #model-select:hover {
-            background: rgba(138, 43, 226, 1);
+        #mic-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+            border-color: #aaa;
+            transform: scale(1.05);
         }
 
-        #toggle-model {
+        #mic-btn.recording {
+            bottom: 50%;
+            right: 50%;
+            transform: translate(50%, 50%) scale(1.5);
+            background: rgba(0, 0, 0, 0.9);
+            border-color: #fff;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+        }
+
+        /* Ripple Effect */
+        #mic-btn.recording::before,
+        #mic-btn.recording::after {
+            content: '';
             position: absolute;
-            bottom: 20px;
-            left: 670px;
-            padding: 10px 20px;
-            background: rgba(138, 43, 226, 0.8);
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            font-family: sans-serif;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            z-index: 10;
-            transition: background 0.3s;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            animation: ripple 2s infinite;
+            z-index: -1;
         }
 
-        #toggle-model:hover {
-            background: rgba(138, 43, 226, 1);
+        #mic-btn.recording::after {
+            animation-delay: 1s;
         }
+
+        @keyframes ripple {
+            0% {
+                width: 100%;
+                height: 100%;
+                opacity: 1;
+                border-width: 2px;
+            }
+            100% {
+                width: 300%;
+                height: 300%;
+                opacity: 0;
+                border-width: 0px;
+            }
+        }
+
+        /* Disperse Animation */
+        #mic-btn.disperse {
+            animation: disperse 0.5s forwards;
+        }
+
+        @keyframes disperse {
+            0% {
+                transform: translate(50%, 50%) scale(1.5);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(50%, 50%) scale(3);
+                opacity: 0;
+            }
+        }
+
+        #mic-icon {
+            width: 30px;
+            height: 30px;
+            fill: #ccc;
+            transition: fill 0.3s;
+        }
+
+        #mic-btn:hover #mic-icon {
+            fill: #fff;
+        }
+
+        #recording-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 90;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        body.recording-mode #recording-overlay {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #poem-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            width: 85%;
+            max-width: 550px;
+            background: linear-gradient(135deg, 
+                rgba(20, 60, 40, 0.95) 0%, 
+                rgba(30, 80, 50, 0.95) 50%, 
+                rgba(20, 60, 40, 0.95) 100%);
+            border: 4px solid #c41e3a;
+            border-radius: 20px;
+            padding: 35px 30px;
+            text-align: center;
+            font-family: 'Georgia', 'Noto Serif SC', serif;
+            color: #f5f5dc;
+            box-shadow: 
+                0 0 30px rgba(255, 215, 0, 0.4),
+                0 0 60px rgba(196, 30, 58, 0.3),
+                inset 0 0 30px rgba(255, 215, 0, 0.1);
+            display: none;
+            z-index: 30;
+            opacity: 0;
+            transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        #poem-container.show {
+            display: block;
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        #poem-container.hiding {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.5);
+        }
+
+        /* 滑动切换动画 */
+        #poem-container.slide-left {
+            animation: slideOutLeft 0.3s ease-out forwards;
+        }
+        
+        #poem-container.slide-right {
+            animation: slideOutRight 0.3s ease-out forwards;
+        }
+        
+        @keyframes slideOutLeft {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: translate(-70%, -50%) scale(0.95);
+                opacity: 0.5;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOutRight {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: translate(-30%, -50%) scale(0.95);
+                opacity: 0.5;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+        
+        /* 故事索引指示器 */
+        #story-indicator {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+        }
+        
+        .indicator-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 215, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .indicator-dot.active {
+            background: #ffd700;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+            transform: scale(1.3);
+        }
+
+        #poem-container h2 {
+            margin: 0 0 15px 0;
+            color: #ffd700;
+            font-size: 26px;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            letter-spacing: 3px;
+        }
+
+        #user-text-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            border-left: 3px solid #ffd700;
+        }
+
+        #user-text-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #user-text {
+            font-size: 16px;
+            color: #e0e0e0;
+            font-style: italic;
+            line-height: 1.4;
+        }
+
+        .poem-divider {
+            width: 60%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #ffd700, transparent);
+            margin: 15px auto;
+        }
+
+        #poem-text {
+            font-size: 22px;
+            line-height: 2;
+            white-space: pre-wrap;
+            color: #fff;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+            letter-spacing: 2px;
+        }
+
+        .decoration {
+            position: absolute;
+            font-size: 35px;
+            filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5));
+        }
+        .top-left { top: -18px; left: -12px; }
+        .top-right { top: -18px; right: -12px; }
+        .bottom-left { bottom: -18px; left: -12px; }
+        .bottom-right { bottom: -18px; right: -12px; }
+
+        /* Snowflake animation on poem card */
+        .snowflake-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            border-radius: 20px;
+        }
+        .snowflake-bg::before {
+            content: '❄';
+            position: absolute;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.3);
+            animation: snowfall 8s linear infinite;
+        }
+        @keyframes snowfall {
+            0% { transform: translateY(-20px) rotate(0deg); opacity: 0; }
+            10% { opacity: 0.5; }
+            90% { opacity: 0.5; }
+            100% { transform: translateY(100%) rotate(360deg); opacity: 0; }
+        }
+
     </style>
 </head>
 
@@ -158,13 +373,30 @@
         <video id="input-video" autoplay playsinline></video>
     </div>
     <div id="canvas-container"></div>
-    <button id="toggle-skeleton">Hide Skeleton</button>
-    <button id="toggle-particles">Hide Particles</button>
+    <div id="recording-overlay"></div>
     <button id="toggle-camera">Hide Camera</button>
-    <select id="model-select">
-        <!-- Options will be populated by JavaScript -->
-    </select>
-    <button id="toggle-model">3D Model</button>
+    
+    <button id="mic-btn">
+        <svg id="mic-icon" viewBox="0 0 24 24">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+    </button>
+
+    <div id="poem-container">
+        <div class="snowflake-bg"></div>
+        <div class="decoration top-left">🎄</div>
+        <div class="decoration top-right">⭐</div>
+        <h2>✨ 铃儿响叮当 ✨</h2>
+        <div id="user-text-container">
+            <div id="user-text"></div>
+        </div>
+        <div class="poem-divider"></div>
+        <div id="poem-text"></div>
+        <div class="decoration bottom-left">🎁</div>
+        <div class="decoration bottom-right">🔔</div>
+    </div>
+
     <script type="importmap">
         {
             "imports": {
@@ -172,6 +404,10 @@
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
             }
         }
+    </script>
+    <script>
+        // Set default model to Santa
+        window.DEFAULT_MODEL_ID = 'santa';
     </script>
     <script type="module" src="./js/skeleton.js?v=3"></script>
 </body>
