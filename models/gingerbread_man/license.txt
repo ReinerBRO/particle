@@ -1,0 +1,11 @@
+Model Information:
+* title:	Gingerbread Man
+* source:	https://sketchfab.com/3d-models/gingerbread-man-9890002a29264d8b830167d749a830ee
+* author:	Andre Lages (https://sketchfab.com/lages.miguel)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Gingerbread Man" (https://sketchfab.com/3d-models/gingerbread-man-9890002a29264d8b830167d749a830ee) by Andre Lages (https://sketchfab.com/lages.miguel) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

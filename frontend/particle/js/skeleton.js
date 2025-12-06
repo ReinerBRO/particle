@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { SnowEffect } from './snow.js';
 import { ChristmasTree } from './christmasTree.js';
 import { GiftBox } from './giftBox.js';
-import { SantaCharacter } from './santa.js';
+import { ModelCharacter, AVAILABLE_MODELS } from './modelCharacter.js';
 
 // Configurationss
 const VIDEO_WIDTH = 640;
@@ -65,13 +65,14 @@ class AuraCharacter {
         this.landmarksMap = {};
         this.particleSystem = null;
         this.giftBox = null;
-        this.santa = null;
-        this.mode = 'particle'; // 'particle' or 'santa'
+        this.modelCharacter = null;  // 统一的 3D 模型角色
+        this.mode = 'particle'; // 'particle' or 'model'
+        this.currentModelId = null;
 
         this.initSkeleton();
         this.createParticleSystem();
         this.initGiftBox();
-        this.initSanta();
+        this.initModelCharacter();
     }
 
     initSkeleton() {
@@ -192,19 +193,26 @@ class AuraCharacter {
         this.giftBox = new GiftBox(this.scene);
     }
 
-    initSanta() {
-        this.santa = new SantaCharacter(this.scene);
-        this.santa.setVisible(false);
+    initModelCharacter() {
+        this.modelCharacter = new ModelCharacter(this.scene);
+        this.modelCharacter.setVisible(false);
+    }
+
+    async setModel(modelId) {
+        if (this.modelCharacter) {
+            await this.modelCharacter.loadModel(modelId);
+            this.currentModelId = modelId;
+        }
     }
 
     setMode(mode) {
         this.mode = mode;
         if (mode === 'particle') {
             if (this.particleSystem) this.particleSystem.visible = true;
-            if (this.santa) this.santa.setVisible(false);
-        } else if (mode === 'santa') {
+            if (this.modelCharacter) this.modelCharacter.setVisible(false);
+        } else if (mode === 'model') {
             if (this.particleSystem) this.particleSystem.visible = false;
-            if (this.santa) this.santa.setVisible(true);
+            if (this.modelCharacter) this.modelCharacter.setVisible(true);
         }
     }
 
@@ -215,13 +223,17 @@ class AuraCharacter {
         // Update based on mode
         if (this.mode === 'particle') {
             this.updateParticles(landmarks);
-        } else if (this.mode === 'santa') {
-            if (this.santa) {
-                this.santa.update(landmarks);
+        } else if (this.mode === 'model') {
+            if (this.modelCharacter) {
+                this.modelCharacter.update(landmarks);
             }
         }
 
-        // Common updates: Skeleton Debug View (respects showSkeleton flag)
+        // 在 model 模式下，隐藏骨架（只显示 3D 模型）
+        const hideSkeletonModes = ['model'];
+        const showSkeletonInThisMode = this.showSkeleton && !hideSkeletonModes.includes(this.mode);
+
+        // Common updates: Skeleton Debug View (respects showSkeleton flag and mode)
         landmarks.forEach((landmark, index) => {
             const sphere = this.landmarksMap[index];
             if (sphere) {
@@ -230,7 +242,7 @@ class AuraCharacter {
                 const z = -landmark.z;
 
                 sphere.position.set(x, y, z);
-                sphere.visible = this.showSkeleton;
+                sphere.visible = showSkeletonInThisMode;
             }
         });
 
@@ -239,9 +251,7 @@ class AuraCharacter {
                 const startIdx = child.userData.start;
                 const endIdx = child.userData.end;
 
-                if (this.landmarksMap[startIdx] && this.landmarksMap[endIdx] &&
-                    this.landmarksMap[startIdx].visible && this.landmarksMap[endIdx].visible) {
-
+                if (this.landmarksMap[startIdx] && this.landmarksMap[endIdx]) {
                     const positions = child.geometry.attributes.position.array;
                     const startPos = this.landmarksMap[startIdx].position;
                     const endPos = this.landmarksMap[endIdx].position;
@@ -255,16 +265,18 @@ class AuraCharacter {
                     positions[5] = endPos.z;
 
                     child.geometry.attributes.position.needsUpdate = true;
-                    child.visible = this.showSkeleton;
+                    child.visible = showSkeletonInThisMode;
                 } else {
                     child.visible = false;
                 }
             }
         });
 
-        // Update gift box based on hand gesture
-        if (this.giftBox) {
+        // Update gift box based on hand gesture (在 model 模式下隐藏)
+        if (this.giftBox && !hideSkeletonModes.includes(this.mode)) {
             this.giftBox.update(landmarks);
+        } else if (this.giftBox) {
+            this.giftBox.hide();
         }
     }
 
@@ -566,19 +578,57 @@ const toggleCameraButton = document.getElementById('toggle-camera');
 const videoContainer = document.getElementById('video-container');
 let cameraVisible = true;
 
+
 toggleCameraButton.addEventListener('click', () => {
     cameraVisible = !cameraVisible;
     videoContainer.style.display = cameraVisible ? 'block' : 'none';
     toggleCameraButton.textContent = cameraVisible ? 'Hide Camera' : 'Show Camera';
 });
 
-// Toggle Santa Mode
-const toggleSantaButton = document.getElementById('toggle-santa');
-let isSantaMode = false;
+// Model selection
+const modelSelect = document.getElementById('model-select');
+const toggleModelButton = document.getElementById('toggle-model');
+let currentMode = 'particle'; // 'particle' or 'model'
+let currentModelId = AVAILABLE_MODELS[0].id; // 默认第一个模型
 
-toggleSantaButton.addEventListener('click', () => {
-    isSantaMode = !isSantaMode;
-    const mode = isSantaMode ? 'santa' : 'particle';
-    characters.forEach(char => char.setMode(mode));
-    toggleSantaButton.textContent = isSantaMode ? 'Particle Mode' : 'Santa Mode';
+// 填充模型选择下拉框
+if (modelSelect) {
+    AVAILABLE_MODELS.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = model.name;
+        modelSelect.appendChild(option);
+    });
+
+    modelSelect.addEventListener('change', async (e) => {
+        currentModelId = e.target.value;
+        // 预加载选中的模型
+        for (const char of characters) {
+            await char.setModel(currentModelId);
+        }
+        // 如果当前是模型模式，切换到新模型
+        if (currentMode === 'model') {
+            characters.forEach(char => char.setMode('model'));
+        }
+    });
+}
+
+function updateModeButtons() {
+    toggleModelButton.textContent = currentMode === 'model' ? '✓ 3D Model' : '3D Model';
+    toggleModelButton.style.background = currentMode === 'model' ? 'rgba(138, 43, 226, 1)' : 'rgba(138, 43, 226, 0.8)';
+}
+
+toggleModelButton.addEventListener('click', async () => {
+    if (currentMode === 'model') {
+        currentMode = 'particle';
+    } else {
+        currentMode = 'model';
+        // 确保模型已加载
+        for (const char of characters) {
+            await char.setModel(currentModelId);
+        }
+    }
+    characters.forEach(char => char.setMode(currentMode));
+    updateModeButtons();
 });
+

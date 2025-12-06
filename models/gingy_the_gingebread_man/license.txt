@@ -1,0 +1,11 @@
+Model Information:
+* title:	Gingy the gingebread man
+* source:	https://sketchfab.com/3d-models/gingy-the-gingebread-man-b06685621d66438ca3c9fa113c096326
+* author:	axonite (https://sketchfab.com/axonite)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Gingy the gingebread man" (https://sketchfab.com/3d-models/gingy-the-gingebread-man-b06685621d66438ca3c9fa113c096326) by axonite (https://sketchfab.com/axonite) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

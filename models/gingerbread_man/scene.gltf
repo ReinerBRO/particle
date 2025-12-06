@@ -1,0 +1,357 @@
+{
+  "accessors": [
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 2932,
+      "max": [
+        57.16488265991211,
+        91.77583312988281,
+        -9.501884460449219
+      ],
+      "min": [
+        -56.551361083984375,
+        -45.55853271484375,
+        -19.82305335998535
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 35184,
+      "componentType": 5126,
+      "count": 2932,
+      "max": [
+        0.9988254904747009,
+        0.9951722621917725,
+        0.9999995231628418
+      ],
+      "min": [
+        -0.9988254904747009,
+        -0.9960816502571106,
+        -0.9999998807907104
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5126,
+      "count": 2932,
+      "max": [
+        0.999999463558197,
+        0.9648481011390686,
+        0.9973063468933105,
+        1.0
+      ],
+      "min": [
+        -0.9999982714653015,
+        -0.9654046297073364,
+        -0.9963410496711731,
+        1.0
+      ],
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 2932,
+      "max": [
+        0.9890425205230713,
+        0.9905035495758057
+      ],
+      "min": [
+        0.019999999552965164,
+        0.019999999552965164
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "componentType": 5125,
+      "count": 16776,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 70368,
+      "componentType": 5126,
+      "count": 5692,
+      "max": [
+        43.713375091552734,
+        89.21698760986328,
+        -6.7516326904296875
+      ],
+      "min": [
+        -43.09986114501953,
+        -39.247276306152344,
+        -15.434874534606934
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 138672,
+      "componentType": 5126,
+      "count": 5692,
+      "max": [
+        0.9998124837875366,
+        0.9999979138374329,
+        0.9999997615814209
+      ],
+      "min": [
+        -0.9998125433921814,
+        -0.999944806098938,
+        -0.878540575504303
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 23456,
+      "componentType": 5126,
+      "count": 5692,
+      "max": [
+        0.9955950379371643,
+        0.9972535371780396
+      ],
+      "min": [
+        0.011226190254092216,
+        0.0024678129702806473
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 67104,
+      "componentType": 5125,
+      "count": 31320,
+      "type": "SCALAR"
+    }
+  ],
+  "asset": {
+    "extras": {
+      "author": "Andre Lages (https://sketchfab.com/lages.miguel)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/gingerbread-man-9890002a29264d8b830167d749a830ee",
+      "title": "Gingerbread Man"
+    },
+    "generator": "Sketchfab-12.67.0",
+    "version": "2.0"
+  },
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 192384,
+      "name": "floatBufferViews",
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 68992,
+      "byteOffset": 192384,
+      "byteStride": 8,
+      "name": "floatBufferViews",
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 206976,
+      "byteOffset": 261376,
+      "byteStride": 12,
+      "name": "floatBufferViews",
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 46912,
+      "byteOffset": 468352,
+      "byteStride": 16,
+      "name": "floatBufferViews",
+      "target": 34962
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 515264,
+      "uri": "scene.bin"
+    }
+  ],
+  "images": [
+    {
+      "uri": "textures/gingerbread_shader_baseColor.png"
+    },
+    {
+      "uri": "textures/gingerbread_shader_normal.png"
+    },
+    {
+      "uri": "textures/elements_shader_baseColor.png"
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "name": "gingerbread_shader",
+      "normalTexture": {
+        "index": 1,
+        "scale": 0.42124263727911837
+      },
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0.0
+      }
+    },
+    {
+      "doubleSided": true,
+      "name": "elements_shader",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 2
+        },
+        "metallicFactor": 0.05035151054531636
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "ginger_body_gingerbread_shader_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 1,
+            "POSITION": 0,
+            "TANGENT": 2,
+            "TEXCOORD_0": 3
+          },
+          "indices": 4,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "elements_elements_shader_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 6,
+            "POSITION": 5,
+            "TEXCOORD_0": 7
+          },
+          "indices": 8,
+          "material": 1,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "children": [
+        1
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        2.220446049250313e-16,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        2.220446049250313e-16,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "Sketchfab_model"
+    },
+    {
+      "children": [
+        2
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        -1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "ginger_model.fbx"
+    },
+    {
+      "children": [
+        3,
+        5
+      ],
+      "name": "RootNode"
+    },
+    {
+      "children": [
+        4
+      ],
+      "name": "ginger_body"
+    },
+    {
+      "mesh": 0,
+      "name": "ginger_body_gingerbread_shader_0"
+    },
+    {
+      "children": [
+        6
+      ],
+      "name": "elements"
+    },
+    {
+      "mesh": 1,
+      "name": "elements_elements_shader_0"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987,
+      "wrapS": 10497,
+      "wrapT": 10497
+    }
+  ],
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Sketchfab_Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    },
+    {
+      "sampler": 0,
+      "source": 1
+    },
+    {
+      "sampler": 0,
+      "source": 2
+    }
+  ]
+}

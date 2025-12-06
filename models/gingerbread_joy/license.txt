@@ -1,0 +1,11 @@
+Model Information:
+* title:	Gingerbread Joy
+* source:	https://sketchfab.com/3d-models/gingerbread-joy-584f89319d33426cb8d4bdeacc4a7887
+* author:	MAROUANE (https://sketchfab.com/MAROUANE03)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Gingerbread Joy" (https://sketchfab.com/3d-models/gingerbread-joy-584f89319d33426cb8d4bdeacc4a7887) by MAROUANE (https://sketchfab.com/MAROUANE03) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
