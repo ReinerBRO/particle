@@ -67,40 +67,122 @@
             background: rgba(255, 136, 0, 1);
         }
 
-        #mic-btn {
+        #toggle-model {
             position: absolute;
             bottom: 20px;
-            right: 20px;
-            width: 60px;
-            height: 60px;
+            left: 160px;
+            padding: 10px 20px;
+            background: rgba(139, 69, 19, 0.8);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-family: sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10;
+            transition: background 0.3s;
+        }
+
+        #toggle-model:hover {
+            background: rgba(139, 69, 19, 1);
+        }
+
+        #toggle-model.disabled {
+            background: rgba(100, 100, 100, 0.8);
+        }
+
+        /* ========== Enhanced Mic Button - Christmas Theme ========== */
+        #mic-btn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
             border-radius: 50%;
-            background: rgba(0, 0, 0, 0.6);
-            border: 2px solid #888;
+            background: linear-gradient(145deg, #1a3a2a, #0d1f16);
+            border: 3px solid transparent;
+            background-clip: padding-box;
             cursor: pointer;
             z-index: 100;
             display: flex;
             justify-content: center;
             align-items: center;
             transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            box-shadow:
+                0 4px 20px rgba(0, 0, 0, 0.4),
+                0 0 30px rgba(196, 30, 58, 0.2),
+                inset 0 2px 10px rgba(255, 255, 255, 0.05);
+        }
+
+        /* Gradient border using pseudo-element */
+        #mic-btn::before {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #c41e3a 0%, #228B22 50%, #ffd700 100%);
+            z-index: -1;
+            opacity: 0.8;
+            transition: opacity 0.3s, transform 0.3s;
         }
 
         #mic-btn:hover {
-            background: rgba(0, 0, 0, 0.8);
-            border-color: #aaa;
-            transform: scale(1.05);
+            transform: scale(1.1);
+            box-shadow:
+                0 6px 30px rgba(0, 0, 0, 0.5),
+                0 0 40px rgba(196, 30, 58, 0.4),
+                0 0 60px rgba(34, 139, 34, 0.3);
         }
 
+        #mic-btn:hover::before {
+            opacity: 1;
+            animation: borderRotate 3s linear infinite;
+        }
+
+        @keyframes borderRotate {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Recording state - center of screen */
         #mic-btn.recording {
             bottom: 50%;
             right: 50%;
-            transform: translate(50%, 50%) scale(1.5);
-            background: rgba(0, 0, 0, 0.9);
-            border-color: #fff;
-            box-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+            transform: translate(50%, 50%) scale(1.8);
+            background: linear-gradient(145deg, #2d1b1b, #1a0f0f);
+            box-shadow:
+                0 0 50px rgba(196, 30, 58, 0.6),
+                0 0 100px rgba(196, 30, 58, 0.3),
+                inset 0 0 20px rgba(255, 0, 0, 0.1);
         }
 
-        /* Ripple Effect */
-        #mic-btn.recording::before,
+        #mic-btn.recording::before {
+            background: linear-gradient(135deg, #ff4444, #c41e3a, #ff6b6b);
+            opacity: 1;
+            animation: borderPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes borderPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 0.8;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 1;
+            }
+        }
+
+        /* Audio wave rings */
         #mic-btn.recording::after {
             content: '';
             position: absolute;
@@ -110,55 +192,164 @@
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            animation: ripple 2s infinite;
-            z-index: -1;
+            border: 2px solid rgba(255, 100, 100, 0.6);
+            animation: audioWave 1.2s ease-out infinite;
+            z-index: -2;
         }
 
-        #mic-btn.recording::after {
-            animation-delay: 1s;
-        }
-
-        @keyframes ripple {
+        @keyframes audioWave {
             0% {
                 width: 100%;
                 height: 100%;
-                opacity: 1;
-                border-width: 2px;
+                opacity: 0.8;
             }
+
             100% {
-                width: 300%;
-                height: 300%;
+                width: 250%;
+                height: 250%;
                 opacity: 0;
-                border-width: 0px;
             }
         }
 
         /* Disperse Animation */
         #mic-btn.disperse {
-            animation: disperse 0.5s forwards;
+            animation: disperse 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
         }
 
         @keyframes disperse {
             0% {
-                transform: translate(50%, 50%) scale(1.5);
+                transform: translate(50%, 50%) scale(1.8);
                 opacity: 1;
+                filter: blur(0);
             }
+
+            50% {
+                transform: translate(50%, 50%) scale(2.5);
+                opacity: 0.5;
+                filter: blur(2px);
+            }
+
             100% {
-                transform: translate(50%, 50%) scale(3);
+                transform: translate(50%, 50%) scale(0.8);
                 opacity: 0;
+                filter: blur(5px);
             }
         }
 
         #mic-icon {
-            width: 30px;
-            height: 30px;
-            fill: #ccc;
-            transition: fill 0.3s;
+            width: 32px;
+            height: 32px;
+            fill: url(#micGradient);
+            transition: all 0.3s ease;
+            filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.5));
         }
 
         #mic-btn:hover #mic-icon {
-            fill: #fff;
+            fill: #ffd700;
+            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+            transform: scale(1.1);
+        }
+
+        #mic-btn.recording #mic-icon {
+            fill: #ff6b6b;
+            filter: drop-shadow(0 0 10px rgba(255, 100, 100, 0.8));
+            animation: micPulse 0.8s ease-in-out infinite;
+        }
+
+        @keyframes micPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.15);
+            }
+        }
+
+        /* Status text below mic button */
+        #mic-status {
+            position: absolute;
+            bottom: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.8);
+            white-space: nowrap;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #mic-btn:hover #mic-status,
+        #mic-btn.recording #mic-status {
+            opacity: 1;
+        }
+
+        #mic-btn.recording #mic-status {
+            color: #ff8888;
+            animation: statusBlink 1s ease-in-out infinite;
+        }
+
+        @keyframes statusBlink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Floating particles around recording button */
+        .mic-particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: radial-gradient(circle, #ffd700 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        #mic-btn.recording .mic-particle {
+            animation: particleFloat 2s ease-in-out infinite;
+        }
+
+        #mic-btn.recording .mic-particle:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+
+        #mic-btn.recording .mic-particle:nth-child(3) {
+            animation-delay: 0.6s;
+        }
+
+        #mic-btn.recording .mic-particle:nth-child(4) {
+            animation-delay: 0.9s;
+        }
+
+        #mic-btn.recording .mic-particle:nth-child(5) {
+            animation-delay: 1.2s;
+        }
+
+        @keyframes particleFloat {
+            0% {
+                opacity: 0;
+                transform: translateY(0) rotate(0deg);
+            }
+
+            20% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-80px) rotate(360deg);
+            }
         }
 
         #recording-overlay {
@@ -188,17 +379,17 @@
             transform: translate(-50%, -50%) scale(0.8);
             width: 85%;
             max-width: 550px;
-            background: linear-gradient(135deg, 
-                rgba(20, 60, 40, 0.95) 0%, 
-                rgba(30, 80, 50, 0.95) 50%, 
-                rgba(20, 60, 40, 0.95) 100%);
+            background: linear-gradient(135deg,
+                    rgba(20, 60, 40, 0.95) 0%,
+                    rgba(30, 80, 50, 0.95) 50%,
+                    rgba(20, 60, 40, 0.95) 100%);
             border: 4px solid #c41e3a;
             border-radius: 20px;
             padding: 35px 30px;
             text-align: center;
             font-family: 'Georgia', 'Noto Serif SC', serif;
             color: #f5f5dc;
-            box-shadow: 
+            box-shadow:
                 0 0 30px rgba(255, 215, 0, 0.4),
                 0 0 60px rgba(196, 30, 58, 0.3),
                 inset 0 0 30px rgba(255, 215, 0, 0.1);
@@ -223,41 +414,45 @@
         #poem-container.slide-left {
             animation: slideOutLeft 0.3s ease-out forwards;
         }
-        
+
         #poem-container.slide-right {
             animation: slideOutRight 0.3s ease-out forwards;
         }
-        
+
         @keyframes slideOutLeft {
             0% {
                 transform: translate(-50%, -50%) scale(1);
                 opacity: 1;
             }
+
             50% {
                 transform: translate(-70%, -50%) scale(0.95);
                 opacity: 0.5;
             }
+
             100% {
                 transform: translate(-50%, -50%) scale(1);
                 opacity: 1;
             }
         }
-        
+
         @keyframes slideOutRight {
             0% {
                 transform: translate(-50%, -50%) scale(1);
                 opacity: 1;
             }
+
             50% {
                 transform: translate(-30%, -50%) scale(0.95);
                 opacity: 0.5;
             }
+
             100% {
                 transform: translate(-50%, -50%) scale(1);
                 opacity: 1;
             }
         }
-        
+
         /* 故事索引指示器 */
         #story-indicator {
             position: absolute;
@@ -267,7 +462,7 @@
             display: flex;
             gap: 8px;
         }
-        
+
         .indicator-dot {
             width: 8px;
             height: 8px;
@@ -275,7 +470,7 @@
             background: rgba(255, 215, 0, 0.3);
             transition: all 0.3s ease;
         }
-        
+
         .indicator-dot.active {
             background: #ffd700;
             box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
@@ -334,10 +529,26 @@
             font-size: 35px;
             filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5));
         }
-        .top-left { top: -18px; left: -12px; }
-        .top-right { top: -18px; right: -12px; }
-        .bottom-left { bottom: -18px; left: -12px; }
-        .bottom-right { bottom: -18px; right: -12px; }
+
+        .top-left {
+            top: -18px;
+            left: -12px;
+        }
+
+        .top-right {
+            top: -18px;
+            right: -12px;
+        }
+
+        .bottom-left {
+            bottom: -18px;
+            left: -12px;
+        }
+
+        .bottom-right {
+            bottom: -18px;
+            right: -12px;
+        }
 
         /* Snowflake animation on poem card */
         .snowflake-bg {
@@ -350,6 +561,7 @@
             overflow: hidden;
             border-radius: 20px;
         }
+
         .snowflake-bg::before {
             content: '❄';
             position: absolute;
@@ -357,13 +569,26 @@
             color: rgba(255, 255, 255, 0.3);
             animation: snowfall 8s linear infinite;
         }
-        @keyframes snowfall {
-            0% { transform: translateY(-20px) rotate(0deg); opacity: 0; }
-            10% { opacity: 0.5; }
-            90% { opacity: 0.5; }
-            100% { transform: translateY(100%) rotate(360deg); opacity: 0; }
-        }
 
+        @keyframes snowfall {
+            0% {
+                transform: translateY(-20px) rotate(0deg);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 0.5;
+            }
+
+            90% {
+                opacity: 0.5;
+            }
+
+            100% {
+                transform: translateY(100%) rotate(360deg);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 
@@ -375,12 +600,33 @@
     <div id="canvas-container"></div>
     <div id="recording-overlay"></div>
     <button id="toggle-camera">Hide Camera</button>
-    
+    <button id="toggle-model">Show Model</button>
+
     <button id="mic-btn">
-        <svg id="mic-icon" viewBox="0 0 24 24">
-            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        <!-- SVG Gradient Definition -->
+        <svg width="0" height="0" style="position:absolute;">
+            <defs>
+                <linearGradient id="micGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
+                    <stop offset="50%" style="stop-color:#ffec8b;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#ffd700;stop-opacity:1" />
+                </linearGradient>
+            </defs>
         </svg>
+        <!-- Floating Particles -->
+        <div class="mic-particle" style="top: -10px; left: 50%;"></div>
+        <div class="mic-particle" style="top: 0; left: 20%;"></div>
+        <div class="mic-particle" style="top: 0; right: 20%;"></div>
+        <div class="mic-particle" style="top: 10px; left: 10%;"></div>
+        <div class="mic-particle" style="top: 10px; right: 10%;"></div>
+        <!-- Mic Icon -->
+        <svg id="mic-icon" viewBox="0 0 24 24">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+            <path
+                d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+        </svg>
+        <!-- Status Text -->
+        <span id="mic-status">点击开始录音</span>
     </button>
 
     <div id="poem-container">
