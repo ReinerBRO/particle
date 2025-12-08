@@ -35,6 +35,208 @@ let poseLandmarker = undefined;
 let handLandmarker = undefined; // 手部关键点检测器
 let lastVideoTime = -1;
 let storyFragments = null; // 故事碎片系统
+let bokehLights = null; // Christmas bokeh light particles
+let globalModelVisible = true; // Global flag for model visibility
+
+// Tree gifts system
+let treeGifts = []; // Array of gifts hanging on the tree
+const MAX_TREE_GIFTS = 10;
+let lastGiftTime = 0;
+
+// Hang a gift on the Christmas tree
+function hangGiftOnTree() {
+    if (treeGifts.length >= MAX_TREE_GIFTS) {
+        console.log('[Gift] Max tree gifts reached');
+        return;
+    }
+
+    if (!scene) return;
+
+    // Create a gift box group
+    const giftGroup = new THREE.Group();
+
+    // Main box (red)
+    const boxGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+    const boxMaterial = new THREE.MeshStandardMaterial({
+        color: Math.random() > 0.5 ? 0xff0000 : 0x00aa00, // Red or Green
+        emissive: 0x330000,
+        emissiveIntensity: 0.3,
+        roughness: 0.3,
+        metalness: 0.2
+    });
+    const box = new THREE.Mesh(boxGeometry, boxMaterial);
+    giftGroup.add(box);
+
+    // Gold ribbon
+    const ribbonMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffd700,
+        emissive: 0xffaa00,
+        emissiveIntensity: 0.3,
+        roughness: 0.4,
+        metalness: 0.6
+    });
+
+    const ribbonV = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.03), ribbonMaterial);
+    const ribbonH = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.22, 0.22), ribbonMaterial);
+    giftGroup.add(ribbonV);
+    giftGroup.add(ribbonH);
+
+    // Bow
+    const bow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), ribbonMaterial);
+    bow.position.y = 0.1;
+    giftGroup.add(bow);
+
+    // Random position on tree (cone distribution)
+    // Tree is at (0, 0, -4), height ~3.5 units
+    const treeBaseY = 0.5;
+    const treeHeight = 3.0;
+    const y = treeBaseY + Math.random() * treeHeight;
+
+    // Radius decreases with height
+    const maxRadius = 1.2 * (1 - (y - treeBaseY) / treeHeight);
+    const radius = 0.3 + Math.random() * maxRadius * 0.8;
+    const angle = Math.random() * Math.PI * 2;
+
+    const x = Math.cos(angle) * radius;
+    const z = -4 + Math.sin(angle) * radius; // Tree is at z = -4
+
+    giftGroup.position.set(x, y, z);
+    giftGroup.userData = {
+        swingPhase: Math.random() * Math.PI * 2,
+        swingSpeed: 0.5 + Math.random() * 0.5
+    };
+
+    scene.add(giftGroup);
+    treeGifts.push(giftGroup);
+
+    console.log(`[Gift] Hung gift on tree at (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)}). Total: ${treeGifts.length}`);
+}
+
+// Update tree gifts animation (gentle swinging)
+function updateTreeGifts(time) {
+    treeGifts.forEach(gift => {
+        const phase = gift.userData.swingPhase;
+        const speed = gift.userData.swingSpeed;
+        gift.rotation.z = Math.sin(time * speed + phase) * 0.1;
+        gift.rotation.x = Math.cos(time * speed * 0.7 + phase) * 0.05;
+    });
+}
+
+// Bokeh Light Particles - Creates dreamy floating light orbs
+function createBokehLights() {
+    const particleCount = 80;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
+    const velocities = [];
+
+    // Warm Christmas colors: gold, orange, warm white, soft red
+    const bokehColors = [
+        new THREE.Color(0xffcc66), // Warm gold
+        new THREE.Color(0xff9944), // Orange
+        new THREE.Color(0xffeebb), // Warm white
+        new THREE.Color(0xff6655), // Soft red
+        new THREE.Color(0x88aaff), // Cool blue (accent)
+        new THREE.Color(0xaaffaa), // Soft green
+    ];
+
+    for (let i = 0; i < particleCount; i++) {
+        // Spread lights across the scene
+        positions[i * 3] = (Math.random() - 0.5) * 20;     // x: -10 to 10
+        positions[i * 3 + 1] = Math.random() * 8 - 1;       // y: -1 to 7
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 15 - 5; // z: -12.5 to 2.5
+
+        // Random warm color
+        const color = bokehColors[Math.floor(Math.random() * bokehColors.length)];
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+
+        // Varied sizes for depth effect
+        sizes[i] = Math.random() * 0.3 + 0.1;
+
+        // Slow drift velocities
+        velocities.push({
+            x: (Math.random() - 0.5) * 0.002,
+            y: (Math.random() - 0.5) * 0.001,
+            z: (Math.random() - 0.5) * 0.001
+        });
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    // Custom shader for soft, glowing bokeh effect
+    const material = new THREE.ShaderMaterial({
+        uniforms: {
+            time: { value: 0 },
+            opacity: { value: 0.7 }
+        },
+        vertexShader: `
+            attribute float size;
+            varying vec3 vColor;
+            varying float vSize;
+            void main() {
+                vColor = color;
+                vSize = size;
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = size * (300.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            uniform float time;
+            uniform float opacity;
+            varying vec3 vColor;
+            varying float vSize;
+            void main() {
+                // Soft circular gradient (bokeh effect)
+                float dist = length(gl_PointCoord - vec2(0.5));
+                if (dist > 0.5) discard;
+                
+                // Soft glow falloff
+                float alpha = smoothstep(0.5, 0.0, dist) * opacity;
+                alpha *= 0.5 + 0.5 * sin(time * 2.0 + vSize * 10.0); // Gentle twinkle
+                
+                gl_FragColor = vec4(vColor, alpha);
+            }
+        `,
+        transparent: true,
+        vertexColors: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+
+    bokehLights = new THREE.Points(geometry, material);
+    bokehLights.userData.velocities = velocities;
+    scene.add(bokehLights);
+}
+
+// Update bokeh lights animation
+function updateBokehLights(time) {
+    if (!bokehLights) return;
+
+    bokehLights.material.uniforms.time.value = time;
+
+    const positions = bokehLights.geometry.attributes.position.array;
+    const velocities = bokehLights.userData.velocities;
+
+    for (let i = 0; i < velocities.length; i++) {
+        positions[i * 3] += velocities[i].x;
+        positions[i * 3 + 1] += velocities[i].y;
+        positions[i * 3 + 2] += velocities[i].z;
+
+        // Wrap around boundaries
+        if (positions[i * 3] > 10) positions[i * 3] = -10;
+        if (positions[i * 3] < -10) positions[i * 3] = 10;
+        if (positions[i * 3 + 1] > 7) positions[i * 3 + 1] = -1;
+        if (positions[i * 3 + 1] < -1) positions[i * 3 + 1] = 7;
+    }
+
+    bokehLights.geometry.attributes.position.needsUpdate = true;
+}
 
 // MediaPipe Pose Connections (subset for simple skeleton)
 const POSE_CONNECTIONS = [
@@ -90,21 +292,21 @@ class AuraCharacter {
         this.lastFeetY = 0;
         this.isJumping = false;
         this.jumpCooldown = 0;
-        
+
         // 气功波状态
         this.isDoingEnergyPose = false;
         this.energyPoseStartTime = 0;
         this.energyBeam = null;
-        
+
         // 跳跃效果
         this.jumpEffect = null;
-        
+
         // 两指手势状态（用于选择故事）
         this.isTwoFingerGesture = false;
         this.isOneFingerGesture = false;
         this.twoFingerStartTime = 0;
         this.handLandmarks = null;
-        
+
         // 滑动检测状态
         this.lastHandX = null;
         this.slideThreshold = 0.08; // 滑动阈值
@@ -120,11 +322,11 @@ class AuraCharacter {
         this.initEnergyBeam();
         this.initJumpEffect();
     }
-    
+
     initEnergyBeam() {
         this.energyBeam = new EnergyBeam(this.scene);
     }
-    
+
     initJumpEffect() {
         this.jumpEffect = new JumpEffect(this.scene);
     }
@@ -134,7 +336,7 @@ class AuraCharacter {
         const ringLayers = 3; // 多层光环
         const particlesPerLayer = 80;
         const particleCount = ringLayers * particlesPerLayer;
-        
+
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
@@ -156,7 +358,7 @@ class AuraCharacter {
                 const angle = (i / particlesPerLayer) * Math.PI * 2 + layer * 0.3;
                 angles[idx] = angle;
                 layers[idx] = layer;
-                
+
                 // Initial positions
                 positions[idx * 3] = Math.cos(angle);
                 positions[idx * 3 + 1] = 0;
@@ -193,7 +395,7 @@ class AuraCharacter {
         this.ringParticles = new THREE.Points(geometry, material);
         this.ringParticles.visible = false;
         this.group.add(this.ringParticles);
-        
+
         // 存储光环基础位置和参数
         this.ringBasePosition = { x: 0, y: 0, z: 0 };
         this.ringExpandProgress = 0;
@@ -236,7 +438,7 @@ class AuraCharacter {
         const centerZ = (-leftAnkle.z - rightAnkle.z) / 2;
 
         this.ringBasePosition = { x: centerX, y: centerY, z: centerZ };
-        
+
         this.ringParticles.visible = true;
         const positions = this.ringParticles.geometry.attributes.position.array;
         const angles = this.ringParticles.geometry.attributes.angle.array;
@@ -244,12 +446,12 @@ class AuraCharacter {
         const layers = layerAttr ? layerAttr.array : null;
         const sizes = this.ringParticles.geometry.attributes.size.array;
         const time = Date.now() * 0.002;
-        
+
         // 根据状态调整光环效果 - 更小的基础半径
         let baseRadius = this.hasPoem ? 0.25 : 0.2;
         let pulseSpeed = this.isRecording ? 0.006 : 0.003;
         let pulseAmount = this.isRecording ? 0.12 : 0.06;
-        
+
         // 柔和的呼吸效果
         const pulse = 1 + Math.sin(Date.now() * pulseSpeed) * pulseAmount;
 
@@ -257,65 +459,65 @@ class AuraCharacter {
         for (let i = 0; i < particleCount; i++) {
             const baseAngle = angles[i];
             const layer = layers ? layers[i] : 0;
-            
+
             // 每层不同的旋转速度和半径
             const layerSpeed = 1 + layer * 0.3;
             const layerRadius = baseRadius * (1 + layer * 0.15);
             const angle = baseAngle + time * layerSpeed;
-            
+
             const radius = layerRadius * pulse;
-            
+
             // 轻微的垂直波动 - 更小幅度
             const waveOffset = Math.sin(baseAngle * 4 + time * 3) * 0.015 * (layer + 1);
-            
+
             positions[i * 3] = centerX + Math.cos(angle) * radius;
             positions[i * 3 + 1] = centerY + waveOffset;
             positions[i * 3 + 2] = centerZ + Math.sin(angle) * radius;
-            
+
             // 动态大小 - 更精致
             const baseSize = layer === 0 ? 0.025 : (layer === 1 ? 0.02 : 0.015);
             sizes[i] = baseSize * (0.8 + Math.sin(time * 2 + baseAngle) * 0.2);
         }
-        
+
         this.ringParticles.geometry.attributes.position.needsUpdate = true;
         this.ringParticles.geometry.attributes.size.needsUpdate = true;
-        
+
         // 调整透明度 - 有诗歌时更亮
         this.ringParticles.material.opacity = this.hasPoem ? 0.95 : 0.75;
     }
 
     disperseRing() {
         if (!this.ringParticles) return;
-        
+
         // 触发扩散动画
         this.ringExpandProgress = 0;
         const startTime = Date.now();
         const duration = 800; // 800ms动画
-        
+
         const animate = () => {
             const elapsed = Date.now() - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            
+
             // 使用ease-out缓动
             const easeProgress = 1 - Math.pow(1 - progress, 3);
-            
+
             if (this.ringParticles && this.ringParticles.visible) {
                 const positions = this.ringParticles.geometry.attributes.position.array;
                 const angles = this.ringParticles.geometry.attributes.angle.array;
-                
+
                 for (let i = 0; i < positions.length / 3; i++) {
                     const angle = angles[i];
                     const expandRadius = 0.5 + easeProgress * 3; // 扩展到更大半径
                     const rise = easeProgress * 2; // 上升
-                    
+
                     positions[i * 3] = this.ringBasePosition.x + Math.cos(angle) * expandRadius;
                     positions[i * 3 + 1] = this.ringBasePosition.y + rise;
                     positions[i * 3 + 2] = this.ringBasePosition.z + Math.sin(angle) * expandRadius;
                 }
-                
+
                 this.ringParticles.geometry.attributes.position.needsUpdate = true;
                 this.ringParticles.material.opacity = 1 - easeProgress;
-                
+
                 if (progress < 1) {
                     requestAnimationFrame(animate);
                 } else {
@@ -324,22 +526,22 @@ class AuraCharacter {
                 }
             }
         };
-        
+
         animate();
     }
-    
+
     // 收回光环动画（从展开状态回到脚下）
     collapseRing(landmarks) {
         if (!this.ringParticles || !this.showingPoem) return;
-        
+
         const leftFoot = landmarks[27];
         const rightFoot = landmarks[28];
         if (!leftFoot || !rightFoot) return;
-        
+
         const centerX = ((0.5 - leftFoot.x) * 2 + (0.5 - rightFoot.x) * 2) / 2;
         const centerY = ((1 - leftFoot.y) * 2 + (1 - rightFoot.y) * 2) / 2;
         const centerZ = (-leftFoot.z - rightFoot.z) / 2;
-        
+
         this.ringBasePosition = { x: centerX, y: centerY, z: centerZ };
         this.ringParticles.visible = true;
         this.ringParticles.material.opacity = 0.8;
@@ -521,6 +723,35 @@ class AuraCharacter {
         return leftWrist.y < nose.y && rightWrist.y < nose.y;
     }
 
+    // Detect presenting gesture (hands together in front) to trigger hanging gift
+    detectPresentingGesture(landmarks) {
+        if (!landmarks || landmarks.length < 33) return false;
+
+        // Get wrist positions (landmarks 15 and 16)
+        const leftWrist = landmarks[15];
+        const rightWrist = landmarks[16];
+
+        if (!leftWrist || !rightWrist) return false;
+
+        // Calculate distance between wrists
+        const dx = leftWrist.x - rightWrist.x;
+        const dy = leftWrist.y - rightWrist.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Check if hands are at similar height
+        const heightDiff = Math.abs(dy);
+
+        // Presenting gesture criteria:
+        // 1. Hands are close together (0.08 to 0.35 units apart)
+        // 2. Hands are at similar height
+        const isPresenting = (
+            distance > 0.08 && distance < 0.35 &&
+            heightDiff < 0.15
+        );
+
+        return isPresenting;
+    }
+
     detectOpenArms(landmarks) {
         // 原本是张开双臂，现在改为不使用
         const leftShoulder = landmarks[11];
@@ -560,7 +791,7 @@ class AuraCharacter {
         // 1. 两个手腕都在身体中线附近（x坐标接近肩膀中心）
         // 2. 手腕在肩膀下方但不会太低（胸口位置）
         // 3. 左手腕在右肩附近，右手腕在左肩附近（交叉）
-        
+
         // 检查手腕是否在胸口高度（肩膀下方一点）
         const chestY = shoulderCenterY + 0.15; // 胸口位置
         const isLeftWristAtChest = leftWrist.y > shoulderCenterY && leftWrist.y < shoulderCenterY + 0.3;
@@ -575,9 +806,9 @@ class AuraCharacter {
         const leftWristNearCenter = Math.abs(leftWrist.x - shoulderCenterX) < 0.2;
         const rightWristNearCenter = Math.abs(rightWrist.x - shoulderCenterX) < 0.2;
 
-        return isLeftWristAtChest && isRightWristAtChest && 
-               isLeftCrossed && isRightCrossed &&
-               leftWristNearCenter && rightWristNearCenter;
+        return isLeftWristAtChest && isRightWristAtChest &&
+            isLeftCrossed && isRightCrossed &&
+            leftWristNearCenter && rightWristNearCenter;
     }
 
     /**
@@ -588,27 +819,27 @@ class AuraCharacter {
         const rightAnkle = landmarks[28];
         const leftHip = landmarks[23];
         const rightHip = landmarks[24];
-        
+
         if (!leftAnkle || !rightAnkle || !leftHip || !rightHip) return false;
-        
+
         // 计算脚踝平均Y位置
         const feetY = (leftAnkle.y + rightAnkle.y) / 2;
         const hipY = (leftHip.y + rightHip.y) / 2;
-        
+
         // 腿的长度比例（脚踝到臀部）
         const legLength = Math.abs(feetY - hipY);
-        
+
         // 跳跃阈值：脚踝Y值明显上升（图像坐标系Y向下）
         // 如果脚踝Y值比上一帧小很多，说明在跳跃
         const jumpThreshold = 0.05; // 5%的画面高度
-        
+
         const isJumping = (this.lastFeetY - feetY) > jumpThreshold;
-        
+
         this.lastFeetY = feetY;
-        
+
         return isJumping;
     }
-    
+
     /**
      * 检测并处理跳跃
      */
@@ -617,12 +848,12 @@ class AuraCharacter {
             this.jumpCooldown--;
             return;
         }
-        
+
         if (this.detectJump(landmarks)) {
             // 触发跳跃效果
             const leftAnkle = landmarks[27];
             const rightAnkle = landmarks[28];
-            
+
             if (leftAnkle && rightAnkle && this.jumpEffect) {
                 const feetPos = new THREE.Vector3(
                     (0.5 - (leftAnkle.x + rightAnkle.x) / 2) * 2,
@@ -635,7 +866,7 @@ class AuraCharacter {
             }
         }
     }
-    
+
     /**
      * 检测气功波动作
      * 支持：正面推掌、侧身推掌
@@ -649,46 +880,46 @@ class AuraCharacter {
         const rightWrist = landmarks[16];
         const leftHip = landmarks[23];
         const rightHip = landmarks[24];
-        
-        if (!leftShoulder || !rightShoulder || !leftElbow || !rightElbow || 
+
+        if (!leftShoulder || !rightShoulder || !leftElbow || !rightElbow ||
             !leftWrist || !rightWrist || !leftHip || !rightHip) {
             return { isActive: false };
         }
-        
+
         // 计算身体中心和朝向
         const shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
         const shoulderCenterY = (leftShoulder.y + rightShoulder.y) / 2;
         const hipCenterX = (leftHip.x + rightHip.x) / 2;
-        
+
         // 判断身体朝向（正面还是侧面）
         const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
         const isSideways = shoulderWidth < 0.15; // 侧身时肩膀宽度变小
-        
+
         // 双手位置
         const handsX = (leftWrist.x + rightWrist.x) / 2;
         const handsY = (leftWrist.y + rightWrist.y) / 2;
         const handsZ = (leftWrist.z + rightWrist.z) / 2;
-        
+
         // 双手是否在身体前方（Z轴）或侧方
         const handsForward = handsZ < (leftShoulder.z + rightShoulder.z) / 2 - 0.05;
-        
+
         // 双手是否在胸口高度附近
         const handsAtChestHeight = handsY > shoulderCenterY - 0.1 && handsY < shoulderCenterY + 0.25;
-        
+
         // 双手是否靠近（不能太分散）
         const handsClose = Math.abs(leftWrist.x - rightWrist.x) < 0.25;
         const handsCloseY = Math.abs(leftWrist.y - rightWrist.y) < 0.15;
-        
+
         // 手臂是否伸展
         const leftArmExtended = this.isArmExtended(leftShoulder, leftElbow, leftWrist);
         const rightArmExtended = this.isArmExtended(rightShoulder, rightElbow, rightWrist);
         const armsExtended = leftArmExtended || rightArmExtended;
-        
+
         // 组合判断
         let isEnergyPose = false;
         let direction = new THREE.Vector3(0, 0, 1);
         let origin = new THREE.Vector3(0, 0, 0);
-        
+
         if (isSideways) {
             // 侧身推掌：一只手向前伸展
             if ((leftArmExtended || rightArmExtended) && handsForward) {
@@ -703,7 +934,7 @@ class AuraCharacter {
                 direction.set(0, 0, -1);
             }
         }
-        
+
         if (isEnergyPose) {
             // 计算波束起点（双手位置）
             origin.set(
@@ -712,10 +943,10 @@ class AuraCharacter {
                 -handsZ - 0.2 // 稍微向前偏移
             );
         }
-        
+
         return { isActive: isEnergyPose, origin, direction };
     }
-    
+
     /**
      * 判断手臂是否伸展
      */
@@ -731,33 +962,33 @@ class AuraCharacter {
             y: wrist.y - elbow.y,
             z: wrist.z - elbow.z
         };
-        
+
         // 计算点积
         const dot = upperArm.x * forearm.x + upperArm.y * forearm.y + upperArm.z * forearm.z;
         const len1 = Math.sqrt(upperArm.x ** 2 + upperArm.y ** 2 + upperArm.z ** 2);
         const len2 = Math.sqrt(forearm.x ** 2 + forearm.y ** 2 + forearm.z ** 2);
-        
+
         if (len1 === 0 || len2 === 0) return false;
-        
+
         const cosAngle = dot / (len1 * len2);
         // 角度接近180度（cos接近-1）表示手臂伸直
         // 但由于我们计算的是从肩到肘再到腕，伸直时应该是同向，cos接近1
         return cosAngle > 0.7; // 角度小于45度认为是伸展
     }
-    
+
     /**
      * 检测并处理气功波动作
      */
     detectAndHandleEnergyPose(landmarks) {
         const poseResult = this.detectEnergyPose(landmarks);
-        
+
         if (poseResult.isActive) {
             if (!this.isDoingEnergyPose) {
                 // 刚开始做动作
                 this.isDoingEnergyPose = true;
                 this.energyPoseStartTime = Date.now();
             }
-            
+
             // 更新能量波束
             if (this.energyBeam) {
                 if (!this.energyBeam.isActive) {
@@ -776,14 +1007,14 @@ class AuraCharacter {
             }
         }
     }
-    
+
     /**
      * 设置手部关键点数据
      */
     setHandLandmarks(handLandmarks) {
         this.handLandmarks = handLandmarks;
     }
-    
+
     /**
      * 检测手指伸出状态
      * 返回: { oneFinger: bool, twoFinger: bool, handX: number }
@@ -792,12 +1023,12 @@ class AuraCharacter {
         if (!this.handLandmarks || this.handLandmarks.length === 0) {
             return { oneFinger: false, twoFinger: false, handX: null };
         }
-        
+
         const hand = this.handLandmarks[0];
         if (!hand || hand.length < 21) {
             return { oneFinger: false, twoFinger: false, handX: null };
         }
-        
+
         // 获取关键点
         const wrist = hand[0];
         const thumbTip = hand[4];
@@ -810,51 +1041,51 @@ class AuraCharacter {
         const ringPIP = hand[14];
         const pinkyTip = hand[20];
         const pinkyPIP = hand[18];
-        
+
         // 检查拇指是否伸出
-        const thumbExtended = thumbTip.y < thumbIP.y || 
-                              Math.abs(thumbTip.x - wrist.x) > Math.abs(thumbIP.x - wrist.x) * 1.2;
-        
+        const thumbExtended = thumbTip.y < thumbIP.y ||
+            Math.abs(thumbTip.x - wrist.x) > Math.abs(thumbIP.x - wrist.x) * 1.2;
+
         // 检查各手指是否伸出（指尖高于PIP关节）
         const indexExtended = indexTip.y < indexPIP.y - 0.02;
         const middleExtended = middleTip.y < middlePIP.y - 0.02;
         const ringExtended = ringTip.y < ringPIP.y - 0.02;
         const pinkyExtended = pinkyTip.y < pinkyPIP.y - 0.02;
-        
+
         // 单指：仅食指伸出
         const oneFinger = indexExtended && !middleExtended && !ringExtended && !pinkyExtended;
-        
+
         // 双指：(食指+拇指) 或 (食指+中指) 伸出
         // 拇指+食指
         const thumbIndex = thumbExtended && indexExtended && !middleExtended && !ringExtended && !pinkyExtended;
         // 食指+中指
         const indexMiddle = indexExtended && middleExtended && !ringExtended && !pinkyExtended;
-        
+
         const twoFinger = thumbIndex || indexMiddle;
-        
+
         // 手的X位置（用于滑动检测）
         const handX = wrist.x;
-        
+
         return { oneFinger, twoFinger, handX };
     }
-    
+
     /**
      * 检测并处理手势
      */
     detectAndHandleTwoFingerGesture() {
         const gesture = this.detectFingerGesture();
-        
+
         // 减少滑动冷却 (更快恢复)
         if (this.slideCooldown > 0) {
             this.slideCooldown--;
         }
-        
+
         // 单指手势 - 读取故事
         if (gesture.oneFinger) {
             if (!this.isOneFingerGesture) {
                 this.isOneFingerGesture = true;
                 console.log('[Gesture] One finger - read story');
-                
+
                 if (storyFragments && !storyFragments.isStoryExpanded()) {
                     const story = storyFragments.expandCurrentStory();
                     if (story) {
@@ -866,14 +1097,14 @@ class AuraCharacter {
             if (this.isOneFingerGesture) {
                 this.isOneFingerGesture = false;
                 console.log('[Gesture] One finger released');
-                
+
                 if (storyFragments && storyFragments.isStoryExpanded()) {
                     storyFragments.collapseStory();
                     this.hideStoryUI();
                 }
             }
         }
-        
+
         // 双指手势 - 滑动切换
         if (gesture.twoFinger) {
             if (!this.isTwoFingerGesture) {
@@ -884,11 +1115,11 @@ class AuraCharacter {
             } else if (gesture.handX !== null && this.lastHandX !== null) {
                 const deltaX = gesture.handX - this.lastHandX;
                 this.slideAccumulator += deltaX;
-                
+
                 // 连续滑动逻辑：当累积移动超过阈值时切换
                 // 阈值越小，切换越灵敏
-                const switchThreshold = 0.05; 
-                
+                const switchThreshold = 0.05;
+
                 if (Math.abs(this.slideAccumulator) > switchThreshold) {
                     // 只有冷却结束才允许切换，防止过快
                     if (this.slideCooldown === 0) {
@@ -907,7 +1138,7 @@ class AuraCharacter {
                                 this.triggerSlideAnimation(1);
                             }
                         }
-                        
+
                         // 切换后重置累加器的一部分，而不是全部清零，以支持非常快速的滑动
                         // 或者减去阈值，保持剩余的移动量
                         if (this.slideAccumulator > 0) {
@@ -915,12 +1146,12 @@ class AuraCharacter {
                         } else {
                             this.slideAccumulator += switchThreshold;
                         }
-                        
+
                         // 设置较短的冷却时间，避免一帧内多次切换
                         this.slideCooldown = 8; // 8帧冷却 (约130ms)
                     }
                 }
-                
+
                 this.lastHandX = gesture.handX;
             }
         } else {
@@ -932,7 +1163,7 @@ class AuraCharacter {
             }
         }
     }
-    
+
     /**
      * 触发滑动动画效果
      */
@@ -948,24 +1179,24 @@ class AuraCharacter {
 
             // 先移除旧动画类
             poemContainer.classList.remove('slide-left', 'slide-right');
-            
+
             // 强制重绘
             void poemContainer.offsetWidth;
-            
+
             // 添加新动画类
             if (direction < 0) {
                 poemContainer.classList.add('slide-left');
             } else {
                 poemContainer.classList.add('slide-right');
             }
-            
+
             // 更新显示内容
             // 立即更新内容，而不是等待动画结束，这样响应更灵敏
             const story = storyFragments?.getCurrentStory();
             if (story) {
                 this.showStoryUI(story);
             }
-            
+
             // 动画结束后移除类
             this.slideAnimationTimeout = setTimeout(() => {
                 poemContainer.classList.remove('slide-left', 'slide-right');
@@ -973,7 +1204,7 @@ class AuraCharacter {
             }, 300);
         }
     }
-    
+
     /**
      * 显示故事UI
      */
@@ -981,13 +1212,13 @@ class AuraCharacter {
         const poemContainer = document.getElementById('poem-container');
         const poemTextElement = document.getElementById('poem-text');
         const userTextElement = document.getElementById('user-text');
-        
+
         if (poemContainer && poemTextElement && story) {
             if (userTextElement) {
                 userTextElement.textContent = story.userText || "...";
             }
             poemTextElement.textContent = story.poemText || "";
-            
+
             // 设置背景图片（如果有）
             if (story.imageUrl) {
                 poemContainer.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('${story.imageUrl}')`;
@@ -996,50 +1227,50 @@ class AuraCharacter {
             } else {
                 poemContainer.style.backgroundImage = ''; // 清除背景
             }
-            
+
             poemContainer.classList.add('show');
             this.showingPoem = true;
-            
+
             // 更新故事索引指示器
             this.updateStoryIndicator();
         }
     }
-    
+
     /**
      * 更新故事索引指示器
      */
     updateStoryIndicator() {
         let indicator = document.getElementById('story-indicator');
         const poemContainer = document.getElementById('poem-container');
-        
+
         if (!poemContainer) return;
-        
+
         const storyCount = storyFragments?.getStoryCount() || 0;
         const currentIndex = storyFragments?.getCurrentIndex() || 0;
-        
+
         if (storyCount <= 1) {
             // 只有一个或没有故事时隐藏指示器
             if (indicator) indicator.style.display = 'none';
             return;
         }
-        
+
         // 创建或更新指示器
         if (!indicator) {
             indicator = document.createElement('div');
             indicator.id = 'story-indicator';
             poemContainer.appendChild(indicator);
         }
-        
+
         indicator.style.display = 'flex';
         indicator.innerHTML = '';
-        
+
         for (let i = 0; i < storyCount; i++) {
             const dot = document.createElement('div');
             dot.className = 'indicator-dot' + (i === currentIndex ? ' active' : '');
             indicator.appendChild(dot);
         }
     }
-    
+
     /**
      * 隐藏故事UI
      */
@@ -1064,6 +1295,16 @@ class AuraCharacter {
             }
         }
 
+        // Check for Presenting gesture (hands together) to hang gift on tree
+        if (this.detectPresentingGesture(landmarks)) {
+            const now = Date.now();
+            if (now - lastGiftTime > 3000) { // 3 seconds cooldown
+                hangGiftOnTree();
+                lastGiftTime = now;
+                console.log('[Gesture] Presenting gesture detected! Hanging gift on tree.');
+            }
+        }
+
         // 禁用：双手环胸召唤卡片功能
         // if (this.hasPoem && this.detectArmsCrossed(landmarks)) {
         //     ...
@@ -1071,21 +1312,21 @@ class AuraCharacter {
 
         // 禁用：脚下光环效果
         // this.updateRingParticles(landmarks);
-        
+
         // 检测跳跃 (已禁用)
         // this.detectAndHandleJump(landmarks);
-        
+
         // 检测两指手势（用于选择故事）
         this.detectAndHandleTwoFingerGesture();
-        
+
         // 检测气功波动作
         this.detectAndHandleEnergyPose(landmarks);
-        
+
         // 更新能量波束
         if (this.energyBeam) {
             this.energyBeam.update(16);
         }
-        
+
         // 更新跳跃效果 (已禁用)
         // if (this.jumpEffect) {
         //     this.jumpEffect.update(16);
@@ -1096,8 +1337,11 @@ class AuraCharacter {
             this.updateParticles(landmarks);
         } else if (this.mode === 'model') {
             if (this.modelCharacter) {
-                this.modelCharacter.setVisible(true); // 确保模型可见
-                this.modelCharacter.update(landmarks);
+                // Only show model if globalModelVisible is true
+                this.modelCharacter.setVisible(globalModelVisible);
+                if (globalModelVisible) {
+                    this.modelCharacter.update(landmarks);
+                }
             }
         }
 
@@ -1156,7 +1400,7 @@ class AuraCharacter {
         const poemContainer = document.getElementById('poem-container');
         const poemTextElement = document.getElementById('poem-text');
         const userTextElement = document.getElementById('user-text');
-        
+
         if (poemContainer && poemTextElement) {
             // 显示用户说的话
             if (userTextElement) {
@@ -1166,14 +1410,14 @@ class AuraCharacter {
             poemTextElement.textContent = this.poemText;
             poemContainer.classList.add('show');
             this.showingPoem = true;
-            
+
             // 启动信封飞行动画
             if (christmasEnvelope && headPosition) {
                 // 圣诞树位置（与 ChristmasTree 初始化位置一致: 0, 0, -4）
                 const treePos = new THREE.Vector3(0, 1.5, -3.5);
                 christmasEnvelope.startFlight(headPosition, treePos);
             }
-            
+
             // Hide after 10 seconds
             setTimeout(() => {
                 poemContainer.classList.remove('show');
@@ -1181,7 +1425,7 @@ class AuraCharacter {
             }, 10000);
         }
     }
-    
+
     hidePoemUI() {
         const poemContainer = document.getElementById('poem-container');
         if (poemContainer) {
@@ -1305,10 +1549,20 @@ async function init() {
 function initThreeJS() {
     // Scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000);
 
-    // Grid Helper - Darker for contrast
-    const gridHelper = new THREE.GridHelper(10, 10, 0x222222, 0x111111);
+    // === Christmas Night Atmosphere ===
+    // Deep blue-purple gradient background
+    scene.background = new THREE.Color(0x0a0a1a); // Dark midnight blue
+
+    // Add atmospheric fog for dreamy, hazy feel
+    scene.fog = new THREE.FogExp2(0x1a1030, 0.08); // Purple-tinted fog
+
+    // Create bokeh light particles (floating warm lights)
+    createBokehLights();
+
+    // Grid Helper - Hidden for cleaner look
+    const gridHelper = new THREE.GridHelper(10, 10, 0x1a1a2e, 0x0f0f1a);
+    gridHelper.visible = false; // Hide grid for cleaner aesthetic
     scene.add(gridHelper);
 
     // Camera
@@ -1316,10 +1570,11 @@ function initThreeJS() {
     camera.position.set(0, 1.5, 3);
 
     // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: false });
+    renderer = new THREE.WebGLRenderer({ antialias: true }); // Enable antialiasing for smoother look
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.toneMapping = THREE.ReinhardToneMapping;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; // Cinematic tone mapping
+    renderer.toneMappingExposure = 1.2;
     canvasContainer.appendChild(renderer.domElement);
 
     // Controls
@@ -1327,10 +1582,21 @@ function initThreeJS() {
     controls.target.set(0, 1, 0);
     controls.update();
 
-    // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+    // Lights - Warmer, more atmospheric
+    const ambientLight = new THREE.AmbientLight(0x4a3a6a, 0.3); // Purple ambient
     scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+
+    // Warm golden light from above (like street lamps)
+    const warmLight = new THREE.PointLight(0xffaa44, 0.8, 20);
+    warmLight.position.set(3, 5, 2);
+    scene.add(warmLight);
+
+    // Cool blue accent light
+    const coolLight = new THREE.PointLight(0x4488ff, 0.4, 15);
+    coolLight.position.set(-3, 3, -2);
+    scene.add(coolLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffeedd, 0.3);
     directionalLight.position.set(2, 2, 5);
     scene.add(directionalLight);
 
@@ -1359,12 +1625,53 @@ function initThreeJS() {
 
     // Christmas Envelope (飞行信封效果)
     christmasEnvelope = new ChristmasEnvelope(scene);
-    
+
     // Story Fragments (故事碎片飞旋效果)
     storyFragments = new StoryFragments(scene, new THREE.Vector3(0, 0, -4));
 
     // Handle Window Resize
     window.addEventListener('resize', onWindowResize, false);
+
+    // WASD Keyboard Controls for Camera Movement
+    const moveSpeed = 0.1;
+    const keyState = {};
+
+    window.addEventListener('keydown', (e) => {
+        keyState[e.key.toLowerCase()] = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+        keyState[e.key.toLowerCase()] = false;
+    });
+
+    // Update camera position based on key state
+    function updateCameraMovement() {
+        const direction = new THREE.Vector3();
+        camera.getWorldDirection(direction);
+
+        const right = new THREE.Vector3();
+        right.crossVectors(direction, camera.up).normalize();
+
+        if (keyState['w']) {
+            camera.position.add(direction.multiplyScalar(moveSpeed));
+            controls.target.add(direction.clone().normalize().multiplyScalar(moveSpeed));
+        }
+        if (keyState['s']) {
+            camera.position.sub(direction.multiplyScalar(moveSpeed));
+            controls.target.sub(direction.clone().normalize().multiplyScalar(moveSpeed));
+        }
+        if (keyState['a']) {
+            camera.position.sub(right.multiplyScalar(moveSpeed));
+            controls.target.sub(right.clone().normalize().multiplyScalar(moveSpeed));
+        }
+        if (keyState['d']) {
+            camera.position.add(right.multiplyScalar(moveSpeed));
+            controls.target.add(right.clone().normalize().multiplyScalar(moveSpeed));
+        }
+    }
+
+    // Store updateCameraMovement for use in animate loop
+    window.updateCameraMovement = updateCameraMovement;
 
     // Start Animation Loop
     animate();
@@ -1381,21 +1688,32 @@ function animate() {
     requestAnimationFrame(animate);
     controls.update();
 
+    // WASD camera movement
+    if (window.updateCameraMovement) {
+        window.updateCameraMovement();
+    }
+
     // Update snow effect
     if (snowEffect) {
         snowEffect.update();
     }
+
+    // Update bokeh lights (Christmas night atmosphere)
+    updateBokehLights(Date.now() * 0.001);
 
     // Update Christmas tree
     if (christmasTree) {
         christmasTree.update(Date.now() * 0.001);
     }
 
+    // Update tree gifts animation
+    updateTreeGifts(Date.now() * 0.001);
+
     // Update Christmas envelope
     if (christmasEnvelope) {
         christmasEnvelope.update(16); // ~60fps
     }
-    
+
     // Update Story Fragments
     if (storyFragments) {
         storyFragments.update(16);
@@ -1407,7 +1725,7 @@ function animate() {
             lastVideoTime = videoElement.currentTime;
             const startTimeMs = performance.now();
             const poseResult = poseLandmarker.detectForVideo(videoElement, startTimeMs);
-            
+
             // 手部检测
             let handResults = null;
             if (handLandmarker) {
@@ -1463,7 +1781,7 @@ async function initMediaPipe() {
             minPosePresenceConfidence: 0.5,
             minTrackingConfidence: 0.5,
         });
-        
+
         loadingElement.textContent = 'Loading Hand Model...';
         handLandmarker = await HandLandmarker.createFromOptions(vision, {
             baseOptions: {
@@ -1540,20 +1858,20 @@ if (micBtn) {
                     const mimeType = mediaRecorder.mimeType || 'audio/webm';
                     const audioBlob = new Blob(audioChunks, { type: mimeType });
                     console.log(`[DEBUG] Audio blob created: ${audioBlob.size} bytes, type: ${mimeType}`);
-                    
+
                     // Set state to processing (maybe change ring color?)
                     // Call API
                     try {
                         console.log("Generating poem...");
                         const result = await generateEmotionPoem(audioBlob);
                         console.log("Poem generated:", result);
-                        
+
                         // 保存故事到 storyFragments（本地+服务器）
                         if (storyFragments) {
                             await storyFragments.addStory(result.userWords, result.poem, result.imageUrl);
                             console.log("[Story] Story saved to fragments");
                         }
-                        
+
                         // 禁用：不再设置 hasPoem 触发旧的显示逻辑
                         // 故事会自动出现在飞旋碎片中
                         characters.forEach(char => {
@@ -1572,7 +1890,13 @@ if (micBtn) {
                 mediaRecorder.start();
                 micBtn.classList.add('recording');
                 document.body.classList.add('recording-mode');
-                
+
+                // Update status text
+                const micStatus = document.getElementById('mic-status');
+                if (micStatus) {
+                    micStatus.textContent = '🎤 正在录音...';
+                }
+
                 // 禁用：不再激活光环效果
                 // characters.forEach(char => {
                 //     char.isRecording = true;
@@ -1586,16 +1910,28 @@ if (micBtn) {
         } else {
             // Stop Recording
             mediaRecorder.stop();
-            
+
+            // Update status text
+            const micStatus = document.getElementById('mic-status');
+            if (micStatus) {
+                micStatus.textContent = '✨ 生成中...';
+            }
+
             // Disperse Animation
             micBtn.classList.add('disperse');
-            
+
             // Wait for animation to finish before resetting
             setTimeout(() => {
                 micBtn.classList.remove('recording');
                 micBtn.classList.remove('disperse');
                 document.body.classList.remove('recording-mode');
-            }, 500); // Match animation duration
+
+                // Reset status text
+                const micStatus = document.getElementById('mic-status');
+                if (micStatus) {
+                    micStatus.textContent = '点击开始录音';
+                }
+            }, 600); // Match animation duration
         }
     });
 }
@@ -1612,3 +1948,26 @@ toggleCameraButton.addEventListener('click', () => {
     toggleCameraButton.textContent = cameraVisible ? 'Hide Camera' : 'Show Camera';
 });
 
+// Toggle model visibility - starts hidden by default
+const toggleModelButton = document.getElementById('toggle-model');
+
+if (toggleModelButton) {
+    // Set initial state - model hidden by default
+    globalModelVisible = false;
+    toggleModelButton.textContent = 'Show Model';
+    toggleModelButton.classList.add('disabled');
+
+    toggleModelButton.addEventListener('click', () => {
+        globalModelVisible = !globalModelVisible;
+
+        // Force immediate update for all character models
+        characters.forEach(char => {
+            if (char.modelCharacter) {
+                char.modelCharacter.setVisible(globalModelVisible);
+            }
+        });
+
+        toggleModelButton.textContent = globalModelVisible ? 'Hide Model' : 'Show Model';
+        toggleModelButton.classList.toggle('disabled', !globalModelVisible);
+    });
+}
