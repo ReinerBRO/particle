@@ -1,0 +1,11 @@
+Model Information:
+* title:	Jack Of Blades
+* source:	https://sketchfab.com/3d-models/jack-of-blades-260da596ec53494cb81971fcaf13f848
+* author:	LamedeFeu (https://sketchfab.com/lamedefeu)
+
+Model License:
+* license type:	CC-BY-NC-SA-4.0 (http://creativecommons.org/licenses/by-nc-sa/4.0/)
+* requirements:	Author must be credited. No commercial use. Modified versions must have the same license.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Jack Of Blades" (https://sketchfab.com/3d-models/jack-of-blades-260da596ec53494cb81971fcaf13f848) by LamedeFeu (https://sketchfab.com/lamedefeu) licensed under CC-BY-NC-SA-4.0 (http://creativecommons.org/licenses/by-nc-sa/4.0/)

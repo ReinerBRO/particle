@@ -250,7 +250,12 @@ def generate_poem():
             
             if not asr_text:
                 print(f"[WARNING] No speech detected in audio!")
-                asr_text = "(无语音内容)"
+                return jsonify({
+                    "error": "No speech detected in audio",
+                    "code": "NO_SPEECH", 
+                    "userText": ""
+                }), 200 # Return 200 to handle gracefully in frontend if needed, or stick to 400. 
+                # User asked to "not call api", effectively aborting. Let's send a clear signal.
             
             print(f"[DEBUG] ASR Text Result: {asr_text}")
 
@@ -277,7 +282,7 @@ def generate_poem():
 - **镜头语言**：景别、视角等
 - **氛围词**：如"梦幻"、"温暖"、"孤独"等
 - **细节修饰**：光源、道具、环境细节等
-- **长度限制**：200字左右，确保生图速度
+
 
 【输出格式】
 请仅输出一个标准的 JSON 对象，不要包含任何其他文字或Markdown标记：

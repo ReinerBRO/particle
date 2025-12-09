@@ -4,13 +4,14 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { SnowEffect } from './snow.js';
+import { SnowGround } from './snowGround.js';
 import { ChristmasTree } from './christmasTree.js';
 import { GiftBox } from './giftBox.js';
 import { ModelCharacter, AVAILABLE_MODELS } from './modelCharacter.js';
 import { generateEmotionPoem } from './audioManager.js';
 import { ChristmasEnvelope } from './christmasEnvelope.js';
-import { EnergyBeam, JumpEffect } from './energyBeam.js';
 import { StoryFragments } from './storyFragments.js';
+import PS5SceneController from './ps5SceneController.js';
 
 // Configurationss
 const VIDEO_WIDTH = 640;
@@ -25,6 +26,7 @@ const loadingElement = document.getElementById('loading');
 let scene, camera, renderer, controls;
 let composer;
 let snowEffect;
+let snowGround;
 let christmasTree;
 let christmasEnvelope;
 
@@ -42,6 +44,9 @@ let globalModelVisible = true; // Global flag for model visibility
 let treeGifts = []; // Array of gifts hanging on the tree
 const MAX_TREE_GIFTS = 10;
 let lastGiftTime = 0;
+
+// PS5 Controller
+let ps5Controller = null;
 
 // Hang a gift on the Christmas tree
 function hangGiftOnTree() {
@@ -288,18 +293,7 @@ class AuraCharacter {
         this.showingPoem = false; // 当前是否正在显示诗歌卡片
         this.ringMode = 'idle'; // 'idle', 'recording', 'ready', 'expanding'
 
-        // 跳跃检测状态
-        this.lastFeetY = 0;
-        this.isJumping = false;
-        this.jumpCooldown = 0;
 
-        // 气功波状态
-        this.isDoingEnergyPose = false;
-        this.energyPoseStartTime = 0;
-        this.energyBeam = null;
-
-        // 跳跃效果
-        this.jumpEffect = null;
 
         // 两指手势状态（用于选择故事）
         this.isTwoFingerGesture = false;
@@ -319,17 +313,10 @@ class AuraCharacter {
         this.initGiftBox();
         this.initModelCharacter();
         // this.initRingParticles(); // 禁用脚下光环效果
-        this.initEnergyBeam();
-        this.initJumpEffect();
+
     }
 
-    initEnergyBeam() {
-        this.energyBeam = new EnergyBeam(this.scene);
-    }
 
-    initJumpEffect() {
-        this.jumpEffect = new JumpEffect(this.scene);
-    }
 
     initRingParticles() {
         // 使用更多粒子，分多层创建更漂亮的光环
@@ -811,202 +798,7 @@ class AuraCharacter {
             leftWristNearCenter && rightWristNearCenter;
     }
 
-    /**
-     * 检测跳跃动作
-     */
-    detectJump(landmarks) {
-        const leftAnkle = landmarks[27];
-        const rightAnkle = landmarks[28];
-        const leftHip = landmarks[23];
-        const rightHip = landmarks[24];
 
-        if (!leftAnkle || !rightAnkle || !leftHip || !rightHip) return false;
-
-        // 计算脚踝平均Y位置
-        const feetY = (leftAnkle.y + rightAnkle.y) / 2;
-        const hipY = (leftHip.y + rightHip.y) / 2;
-
-        // 腿的长度比例（脚踝到臀部）
-        const legLength = Math.abs(feetY - hipY);
-
-        // 跳跃阈值：脚踝Y值明显上升（图像坐标系Y向下）
-        // 如果脚踝Y值比上一帧小很多，说明在跳跃
-        const jumpThreshold = 0.05; // 5%的画面高度
-
-        const isJumping = (this.lastFeetY - feetY) > jumpThreshold;
-
-        this.lastFeetY = feetY;
-
-        return isJumping;
-    }
-
-    /**
-     * 检测并处理跳跃
-     */
-    detectAndHandleJump(landmarks) {
-        if (this.jumpCooldown > 0) {
-            this.jumpCooldown--;
-            return;
-        }
-
-        if (this.detectJump(landmarks)) {
-            // 触发跳跃效果
-            const leftAnkle = landmarks[27];
-            const rightAnkle = landmarks[28];
-
-            if (leftAnkle && rightAnkle && this.jumpEffect) {
-                const feetPos = new THREE.Vector3(
-                    (0.5 - (leftAnkle.x + rightAnkle.x) / 2) * 2,
-                    (1 - Math.max(leftAnkle.y, rightAnkle.y)) * 2,
-                    -(leftAnkle.z + rightAnkle.z) / 2
-                );
-                this.jumpEffect.trigger(feetPos);
-                this.jumpCooldown = 30; // 30帧冷却
-                console.log('[Jump] Jump detected!');
-            }
-        }
-    }
-
-    /**
-     * 检测气功波动作
-     * 支持：正面推掌、侧身推掌
-     */
-    detectEnergyPose(landmarks) {
-        const leftShoulder = landmarks[11];
-        const rightShoulder = landmarks[12];
-        const leftElbow = landmarks[13];
-        const rightElbow = landmarks[14];
-        const leftWrist = landmarks[15];
-        const rightWrist = landmarks[16];
-        const leftHip = landmarks[23];
-        const rightHip = landmarks[24];
-
-        if (!leftShoulder || !rightShoulder || !leftElbow || !rightElbow ||
-            !leftWrist || !rightWrist || !leftHip || !rightHip) {
-            return { isActive: false };
-        }
-
-        // 计算身体中心和朝向
-        const shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
-        const shoulderCenterY = (leftShoulder.y + rightShoulder.y) / 2;
-        const hipCenterX = (leftHip.x + rightHip.x) / 2;
-
-        // 判断身体朝向（正面还是侧面）
-        const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
-        const isSideways = shoulderWidth < 0.15; // 侧身时肩膀宽度变小
-
-        // 双手位置
-        const handsX = (leftWrist.x + rightWrist.x) / 2;
-        const handsY = (leftWrist.y + rightWrist.y) / 2;
-        const handsZ = (leftWrist.z + rightWrist.z) / 2;
-
-        // 双手是否在身体前方（Z轴）或侧方
-        const handsForward = handsZ < (leftShoulder.z + rightShoulder.z) / 2 - 0.05;
-
-        // 双手是否在胸口高度附近
-        const handsAtChestHeight = handsY > shoulderCenterY - 0.1 && handsY < shoulderCenterY + 0.25;
-
-        // 双手是否靠近（不能太分散）
-        const handsClose = Math.abs(leftWrist.x - rightWrist.x) < 0.25;
-        const handsCloseY = Math.abs(leftWrist.y - rightWrist.y) < 0.15;
-
-        // 手臂是否伸展
-        const leftArmExtended = this.isArmExtended(leftShoulder, leftElbow, leftWrist);
-        const rightArmExtended = this.isArmExtended(rightShoulder, rightElbow, rightWrist);
-        const armsExtended = leftArmExtended || rightArmExtended;
-
-        // 组合判断
-        let isEnergyPose = false;
-        let direction = new THREE.Vector3(0, 0, 1);
-        let origin = new THREE.Vector3(0, 0, 0);
-
-        if (isSideways) {
-            // 侧身推掌：一只手向前伸展
-            if ((leftArmExtended || rightArmExtended) && handsForward) {
-                isEnergyPose = true;
-                // 侧身时方向沿Z轴
-                direction.set(0, 0, -1);
-            }
-        } else {
-            // 正面推掌：双手向前推出
-            if (handsAtChestHeight && handsClose && handsCloseY && armsExtended && handsForward) {
-                isEnergyPose = true;
-                direction.set(0, 0, -1);
-            }
-        }
-
-        if (isEnergyPose) {
-            // 计算波束起点（双手位置）
-            origin.set(
-                (0.5 - handsX) * 2,
-                (1 - handsY) * 2,
-                -handsZ - 0.2 // 稍微向前偏移
-            );
-        }
-
-        return { isActive: isEnergyPose, origin, direction };
-    }
-
-    /**
-     * 判断手臂是否伸展
-     */
-    isArmExtended(shoulder, elbow, wrist) {
-        // 计算肩-肘-腕的角度
-        const upperArm = {
-            x: elbow.x - shoulder.x,
-            y: elbow.y - shoulder.y,
-            z: elbow.z - shoulder.z
-        };
-        const forearm = {
-            x: wrist.x - elbow.x,
-            y: wrist.y - elbow.y,
-            z: wrist.z - elbow.z
-        };
-
-        // 计算点积
-        const dot = upperArm.x * forearm.x + upperArm.y * forearm.y + upperArm.z * forearm.z;
-        const len1 = Math.sqrt(upperArm.x ** 2 + upperArm.y ** 2 + upperArm.z ** 2);
-        const len2 = Math.sqrt(forearm.x ** 2 + forearm.y ** 2 + forearm.z ** 2);
-
-        if (len1 === 0 || len2 === 0) return false;
-
-        const cosAngle = dot / (len1 * len2);
-        // 角度接近180度（cos接近-1）表示手臂伸直
-        // 但由于我们计算的是从肩到肘再到腕，伸直时应该是同向，cos接近1
-        return cosAngle > 0.7; // 角度小于45度认为是伸展
-    }
-
-    /**
-     * 检测并处理气功波动作
-     */
-    detectAndHandleEnergyPose(landmarks) {
-        const poseResult = this.detectEnergyPose(landmarks);
-
-        if (poseResult.isActive) {
-            if (!this.isDoingEnergyPose) {
-                // 刚开始做动作
-                this.isDoingEnergyPose = true;
-                this.energyPoseStartTime = Date.now();
-            }
-
-            // 更新能量波束
-            if (this.energyBeam) {
-                if (!this.energyBeam.isActive) {
-                    this.energyBeam.activate(poseResult.origin, poseResult.direction);
-                } else {
-                    this.energyBeam.updateBeamTransform(poseResult.origin, poseResult.direction);
-                }
-            }
-        } else {
-            if (this.isDoingEnergyPose) {
-                // 停止动作
-                this.isDoingEnergyPose = false;
-                if (this.energyBeam) {
-                    this.energyBeam.deactivate();
-                }
-            }
-        }
-    }
 
     /**
      * 设置手部关键点数据
@@ -1165,109 +957,127 @@ class AuraCharacter {
     }
 
     /**
-     * 触发滑动动画效果
+     * 触发滑动动画效果 (仅内容切换，无位移)
      */
     triggerSlideAnimation(direction) {
-        // 获取UI元素并添加滑动动画类
+        // 获取UI元素
         const poemContainer = document.getElementById('poem-container');
         if (poemContainer && poemContainer.classList.contains('show')) {
-            // 清除之前的定时器，防止动画中断
-            if (this.slideAnimationTimeout) {
-                clearTimeout(this.slideAnimationTimeout);
-                this.slideAnimationTimeout = null;
-            }
-
-            // 先移除旧动画类
-            poemContainer.classList.remove('slide-left', 'slide-right');
-
-            // 强制重绘
-            void poemContainer.offsetWidth;
-
-            // 添加新动画类
-            if (direction < 0) {
-                poemContainer.classList.add('slide-left');
-            } else {
-                poemContainer.classList.add('slide-right');
-            }
-
-            // 更新显示内容
-            // 立即更新内容，而不是等待动画结束，这样响应更灵敏
+            // 立即更新内容
             const story = storyFragments?.getCurrentStory();
             if (story) {
                 this.showStoryUI(story);
             }
-
-            // 动画结束后移除类
-            this.slideAnimationTimeout = setTimeout(() => {
-                poemContainer.classList.remove('slide-left', 'slide-right');
-                this.slideAnimationTimeout = null;
-            }, 300);
         }
     }
 
     /**
-     * 显示故事UI
-     */
-    showStoryUI(story) {
-        const poemContainer = document.getElementById('poem-container');
-        const poemTextElement = document.getElementById('poem-text');
-        const userTextElement = document.getElementById('user-text');
 
-        if (poemContainer && poemTextElement && story) {
-            if (userTextElement) {
-                userTextElement.textContent = story.userText || "...";
-            }
-            poemTextElement.textContent = story.poemText || "";
-
-            // 设置背景图片（如果有）
+            // Set Background
             if (story.imageUrl) {
-                poemContainer.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('${story.imageUrl}')`;
-                poemContainer.style.backgroundSize = 'cover';
-                poemContainer.style.backgroundPosition = 'center';
+                poemBg.style.backgroundImage = `url('${story.imageUrl}')`;
             } else {
-                poemContainer.style.backgroundImage = ''; // 清除背景
+                poemBg.style.backgroundImage = 'none';
             }
 
-            poemContainer.classList.add('show');
             this.showingPoem = true;
 
-            // 更新故事索引指示器
+            // Updated indicator
             this.updateStoryIndicator();
         }
     }
 
     /**
-     * 更新故事索引指示器
+     * Update Story Progress Bar
      */
     updateStoryIndicator() {
-        let indicator = document.getElementById('story-indicator');
+        const progressBar = document.getElementById('story-progress-bar');
         const poemContainer = document.getElementById('poem-container');
 
-        if (!poemContainer) return;
+        if (!poemContainer || !progressBar) return;
 
         const storyCount = storyFragments?.getStoryCount() || 0;
         const currentIndex = storyFragments?.getCurrentIndex() || 0;
 
         if (storyCount <= 1) {
-            // 只有一个或没有故事时隐藏指示器
-            if (indicator) indicator.style.display = 'none';
+            progressBar.style.width = '100%';
             return;
         }
 
-        // 创建或更新指示器
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'story-indicator';
-            poemContainer.appendChild(indicator);
+        // Calculate progress percentage
+        // If 5 stories, index 0 is 20%, index 4 is 100%
+        const progress = ((currentIndex + 1) / storyCount) * 100;
+        progressBar.style.width = `${progress}%`;
+    }
+
+    /**
+     * 滚动故事内容
+     */
+    scrollStoryUI(deltaY) {
+        const poemTextElement = document.getElementById('poem-text');
+        if (poemTextElement) {
+            // Adjust sensitivity: Normalized Y is small (-1 to 1), map to pixels
+            // Increased multiplier for realistic scroll speed
+            poemTextElement.scrollTop -= deltaY * 600;
+        }
+    }
+
+    /**
+     * 更新删除按钮UI动画
+     * @param {number} progress 0.0 to 1.0 (1.0 = ready to delete)
+     */
+    updateDeleteUI(progress) {
+        let btn = document.getElementById('delete-story-btn');
+        if (!btn) {
+            btn = document.createElement('div');
+            btn.id = 'delete-story-btn';
+            btn.innerHTML = '🗑️'; // Trash icon
+            Object.assign(btn.style, {
+                position: 'fixed',
+                bottom: '40px',
+                left: '50%',
+                transform: 'translateX(-50%) scale(0)',
+                width: '70px',
+                height: '70px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 59, 48, 0)',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '32px',
+                zIndex: '2000',
+                transition: 'transform 0.1s, background-color 0.1s, opacity 0.1s',
+                opacity: '0',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                pointerEvents: 'none'
+            });
+            document.body.appendChild(btn);
         }
 
-        indicator.style.display = 'flex';
-        indicator.innerHTML = '';
+        if (progress <= 0.05) {
+            btn.style.opacity = '0';
+            btn.style.transform = 'translateX(-50%) scale(0)';
+            return;
+        }
 
-        for (let i = 0; i < storyCount; i++) {
-            const dot = document.createElement('div');
-            dot.className = 'indicator-dot' + (i === currentIndex ? ' active' : '');
-            indicator.appendChild(dot);
+        btn.style.display = 'flex';
+        btn.style.opacity = '1';
+
+        // Animation
+        const scale = 0.5 + Math.min(progress, 1.2) * 1.0;
+        const bgOpacity = 0.2 + Math.min(progress, 1) * 0.8;
+
+        btn.style.transform = `translateX(-50%) scale(${scale})`;
+        btn.style.backgroundColor = `rgba(255, 59, 48, ${bgOpacity})`;
+
+        if (progress >= 0.8) { // Threshold for "Ready" visual
+            btn.style.boxShadow = `0 0 ${20 + (progress - 0.8) * 50}px rgba(255, 0, 0, 0.8)`;
+            if (progress >= 1.0) btn.innerHTML = '💥';
+            else btn.innerHTML = '🗑️';
+        } else {
+            btn.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4)';
+            btn.innerHTML = '🗑️';
         }
     }
 
@@ -1289,55 +1099,20 @@ class AuraCharacter {
         // Check for Hands Up gesture to switch model
         if (this.mode === 'model' && this.detectHandsUp(landmarks)) {
             const now = Date.now();
-            if (now - this.lastSwitchTime > 2000) { // 2 seconds debounce
+            if (now - this.lastSwitchTime > 2000) {
                 this.switchRandomModel();
                 this.lastSwitchTime = now;
             }
         }
 
-        // Check for Presenting gesture (hands together) to hang gift on tree
-        if (this.detectPresentingGesture(landmarks)) {
-            const now = Date.now();
-            if (now - lastGiftTime > 3000) { // 3 seconds cooldown
-                hangGiftOnTree();
-                lastGiftTime = now;
-                console.log('[Gesture] Presenting gesture detected! Hanging gift on tree.');
-            }
-        }
-
-        // 禁用：双手环胸召唤卡片功能
-        // if (this.hasPoem && this.detectArmsCrossed(landmarks)) {
-        //     ...
-        // }
-
-        // 禁用：脚下光环效果
-        // this.updateRingParticles(landmarks);
-
-        // 检测跳跃 (已禁用)
-        // this.detectAndHandleJump(landmarks);
-
         // 检测两指手势（用于选择故事）
         this.detectAndHandleTwoFingerGesture();
-
-        // 检测气功波动作
-        this.detectAndHandleEnergyPose(landmarks);
-
-        // 更新能量波束
-        if (this.energyBeam) {
-            this.energyBeam.update(16);
-        }
-
-        // 更新跳跃效果 (已禁用)
-        // if (this.jumpEffect) {
-        //     this.jumpEffect.update(16);
-        // }
 
         // Update based on mode
         if (this.mode === 'particle') {
             this.updateParticles(landmarks);
         } else if (this.mode === 'model') {
             if (this.modelCharacter) {
-                // Only show model if globalModelVisible is true
                 this.modelCharacter.setVisible(globalModelVisible);
                 if (globalModelVisible) {
                     this.modelCharacter.update(landmarks);
@@ -1349,7 +1124,7 @@ class AuraCharacter {
         const hideSkeletonModes = ['model'];
         const showSkeletonInThisMode = this.showSkeleton && !hideSkeletonModes.includes(this.mode);
 
-        // Common updates: Skeleton Debug View (respects showSkeleton flag and mode)
+        // Common updates: Skeleton Debug View
         landmarks.forEach((landmark, index) => {
             const sphere = this.landmarksMap[index];
             if (sphere) {
@@ -1388,7 +1163,7 @@ class AuraCharacter {
             }
         });
 
-        // Update gift box based on hand gesture (在 model 模式下隐藏)
+        // Update gift box
         if (this.giftBox && !hideSkeletonModes.includes(this.mode)) {
             this.giftBox.update(landmarks);
         } else if (this.giftBox) {
@@ -1398,31 +1173,37 @@ class AuraCharacter {
 
     showPoemUI(headPosition = null) {
         const poemContainer = document.getElementById('poem-container');
+        const poemBg = document.getElementById('poem-bg');
         const poemTextElement = document.getElementById('poem-text');
         const userTextElement = document.getElementById('user-text');
 
         if (poemContainer && poemTextElement) {
-            // 显示用户说的话
             if (userTextElement) {
                 userTextElement.textContent = this.userWords || "...";
             }
-            // 显示诗歌
             poemTextElement.textContent = this.poemText;
-            poemContainer.classList.add('show');
+
+            // Default styling for new story
+            poemContainer.className = 'layout-left accent-gold font-serif show';
+
+            // If we have an image URL from generation
+            if (this.generatedImageUrl) {
+                poemBg.style.backgroundImage = `url('${this.generatedImageUrl}')`;
+            }
+
             this.showingPoem = true;
 
-            // 启动信封飞行动画
+            // Envelope flight animation
             if (christmasEnvelope && headPosition) {
-                // 圣诞树位置（与 ChristmasTree 初始化位置一致: 0, 0, -4）
                 const treePos = new THREE.Vector3(0, 1.5, -3.5);
                 christmasEnvelope.startFlight(headPosition, treePos);
             }
 
-            // Hide after 10 seconds
+            // Hide after 15 seconds
             setTimeout(() => {
                 poemContainer.classList.remove('show');
                 this.showingPoem = false;
-            }, 10000);
+            }, 15000);
         }
     }
 
@@ -1431,6 +1212,34 @@ class AuraCharacter {
         if (poemContainer) {
             poemContainer.classList.remove('show');
             this.showingPoem = false;
+        }
+    }
+
+    /**
+     * 设置故事图片变换 (缩放 + 位移)
+     * @param {number} scale - 缩放倍率
+     * @param {number} x - X轴位移 (px)
+     * @param {number} y - Y轴位移 (px)
+     * @param {boolean} withTransition - 是否启用平滑过渡/回弹动画
+     */
+    setStoryImageTransform(scale, x, y, withTransition = false) {
+        const poemContainer = document.getElementById('poem-container');
+        if (poemContainer) {
+            const glassPane = poemContainer.querySelector('.story-glass-pane');
+
+            if (withTransition) {
+                // 弹性回弹动画 (保留 opacity 过渡)
+                poemContainer.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.8s ease';
+                if (glassPane) glassPane.style.opacity = '1';
+            } else {
+                // 交互时禁用 transform 过渡，确保跟手
+                poemContainer.style.transition = 'opacity 0.8s ease';
+                if (glassPane) glassPane.style.opacity = '0';
+            }
+
+            // 保留居中定位 (translate(-50%, -50%)) 并叠加偏移和缩放
+            // scale 默认为 1 (在CSS中 show 状态是 scale(1))
+            poemContainer.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${scale})`;
         }
     }
 
@@ -1582,8 +1391,8 @@ function initThreeJS() {
     controls.target.set(0, 1, 0);
     controls.update();
 
-    // Lights - Warmer, more atmospheric
-    const ambientLight = new THREE.AmbientLight(0x4a3a6a, 0.3); // Purple ambient
+    // Lights - Warmer, more atmospheric (降低环境光)
+    const ambientLight = new THREE.AmbientLight(0x4a3a6a, 0.35); // 降低强度到0.35
     scene.add(ambientLight);
 
     // Warm golden light from above (like street lamps)
@@ -1623,11 +1432,22 @@ function initThreeJS() {
     // Christmas Tree
     christmasTree = new ChristmasTree(scene);
 
+    // Christmas Tree Glow Light (night scene main light source)
+    const treeLight = new THREE.PointLight(0xffd700, 1.8, 18);
+    treeLight.position.set(0, 2, -4); // Center of tree
+    scene.add(treeLight);
+
+    // Snow Ground (static, no trail texture)
+    snowGround = new SnowGround(scene);
+
     // Christmas Envelope (飞行信封效果)
     christmasEnvelope = new ChristmasEnvelope(scene);
 
     // Story Fragments (故事碎片飞旋效果)
     storyFragments = new StoryFragments(scene, new THREE.Vector3(0, 0, -4));
+
+    // Initialize PS5 Controller
+    initPS5Controller();
 
     // Handle Window Resize
     window.addEventListener('resize', onWindowResize, false);
@@ -1717,6 +1537,11 @@ function animate() {
     // Update Story Fragments
     if (storyFragments) {
         storyFragments.update(16);
+    }
+
+    // Update PS5 Controller
+    if (ps5Controller) {
+        ps5Controller.update(16);
     }
 
     // Render MediaPipe Pose & Hand
@@ -1828,18 +1653,57 @@ async function initMediaPipe() {
 // Start
 init();
 
-// Mic Button Logic
-const micBtn = document.getElementById('mic-btn');
+// Voice Button Logic
+const voiceBtn = document.getElementById('voice-btn');
+const voiceStatus = document.getElementById('voice-status');
+
 let mediaRecorder;
 let audioChunks = [];
+let audioContext;
+let analyser;
+let dataArray;
+let hasAudioInput = false;
+let audioCheckInterval;
 
-if (micBtn) {
-    micBtn.addEventListener('click', async () => {
+if (voiceBtn) {
+    voiceBtn.addEventListener('click', async () => {
         if (!mediaRecorder || mediaRecorder.state === 'inactive') {
             // Start Recording
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                // Use webm format which is natively supported by browsers
+
+                // Audio Input Detection Setup
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const source = audioContext.createMediaStreamSource(stream);
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    source.connect(analyser);
+                    dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    hasAudioInput = false;
+
+                    // Check for audio input periodically
+                    audioCheckInterval = setInterval(() => {
+                        if (!analyser) return;
+                        analyser.getByteFrequencyData(dataArray);
+                        // Calculate average volume
+                        let sum = 0;
+                        for (let i = 0; i < dataArray.length; i++) {
+                            sum += dataArray[i];
+                        }
+                        const average = sum / dataArray.length;
+
+                        // Threshold for "sound detected" (noise floor is usually low)
+                        if (average > 10) {
+                            hasAudioInput = true;
+                        }
+                    }, 100);
+                } catch (e) {
+                    console.warn("AudioContext setup failed, defaulting access to true", e);
+                    hasAudioInput = true; // Fallback
+                }
+
+                // Setup MediaRecorder
                 const options = { mimeType: 'audio/webm;codecs=opus' };
                 if (!MediaRecorder.isTypeSupported(options.mimeType)) {
                     console.warn('audio/webm;codecs=opus not supported, using default');
@@ -1854,54 +1718,90 @@ if (micBtn) {
                 };
 
                 mediaRecorder.onstop = async () => {
+                    // Cleanup Audio Context
+                    clearInterval(audioCheckInterval);
+                    if (audioContext && audioContext.state !== 'closed') {
+                        audioContext.close();
+                    }
+
+                    // Stop all tracks to release mic
+                    stream.getTracks().forEach(track => track.stop());
+
+                    // UI Cleanup
+                    voiceBtn.classList.remove('recording');
+                    document.body.classList.remove('recording-mode');
+
+                    // 1. Silent Check
+                    if (!hasAudioInput) {
+                        console.log("No audio input detected, skipping API call.");
+                        if (voiceStatus) voiceStatus.textContent = '❌ 未检测到语音 / No speech detected';
+
+                        // Reset UI after short delay
+                        setTimeout(() => {
+                            if (voiceStatus) voiceStatus.textContent = '点击说话 / Click to Speak';
+                        }, 2000);
+                        return;
+                    }
+
+                    // 2. Proceed with API Call
+                    voiceBtn.classList.add('processing'); // Visual feedback
+                    if (voiceStatus) voiceStatus.textContent = '✨ 生成中... / Generating...';
+
                     // Use the actual MIME type from the recorder
                     const mimeType = mediaRecorder.mimeType || 'audio/webm';
                     const audioBlob = new Blob(audioChunks, { type: mimeType });
                     console.log(`[DEBUG] Audio blob created: ${audioBlob.size} bytes, type: ${mimeType}`);
 
-                    // Set state to processing (maybe change ring color?)
-                    // Call API
                     try {
                         console.log("Generating poem...");
                         const result = await generateEmotionPoem(audioBlob);
                         console.log("Poem generated:", result);
 
-                        // 保存故事到 storyFragments（本地+服务器）
+                        // Save story
                         if (storyFragments) {
                             await storyFragments.addStory(result.userWords, result.poem, result.imageUrl);
                             console.log("[Story] Story saved to fragments");
                         }
 
-                        // 禁用：不再设置 hasPoem 触发旧的显示逻辑
-                        // 故事会自动出现在飞旋碎片中
+                        // Update characters
                         characters.forEach(char => {
                             char.poemText = result.poem;
                             char.userWords = result.userWords;
-                            // char.hasPoem = true; // 禁用旧的光环触发
                             char.isRecording = false;
                         });
+
+                        // Success Feedback
+                        voiceBtn.classList.remove('processing');
+                        if (voiceStatus) voiceStatus.textContent = '✅ 生成成功! / Done!';
+                        setTimeout(() => {
+                            if (voiceStatus) voiceStatus.textContent = '点击说话 / Click to Speak';
+                        }, 3000);
+
                     } catch (error) {
                         console.error("Poem generation failed:", error);
                         characters.forEach(char => char.isRecording = false);
-                        alert("Failed to generate poem. Please try again.");
+
+                        voiceBtn.classList.remove('processing');
+
+                        if (error.message === 'NO_SPEECH') {
+                            if (voiceStatus) voiceStatus.textContent = '❌ 未检测到语音 / No speech detected';
+                        } else {
+                            if (voiceStatus) voiceStatus.textContent = '❌ 生成失败 / Failed';
+                            alert("Failed to generate poem. Please try again.");
+                        }
+
+                        setTimeout(() => {
+                            if (voiceStatus) voiceStatus.textContent = '点击说话 / Click to Speak';
+                        }, 3000);
                     }
                 };
 
                 mediaRecorder.start();
-                micBtn.classList.add('recording');
+
+                // UI Update for Recording
+                voiceBtn.classList.add('recording');
                 document.body.classList.add('recording-mode');
-
-                // Update status text
-                const micStatus = document.getElementById('mic-status');
-                if (micStatus) {
-                    micStatus.textContent = '🎤 正在录音...';
-                }
-
-                // 禁用：不再激活光环效果
-                // characters.forEach(char => {
-                //     char.isRecording = true;
-                //     char.hasPoem = false;
-                // });
+                if (voiceStatus) voiceStatus.textContent = '🎤 正在录音... / Recording...';
 
             } catch (err) {
                 console.error("Error accessing microphone:", err);
@@ -1910,64 +1810,254 @@ if (micBtn) {
         } else {
             // Stop Recording
             mediaRecorder.stop();
-
-            // Update status text
-            const micStatus = document.getElementById('mic-status');
-            if (micStatus) {
-                micStatus.textContent = '✨ 生成中...';
-            }
-
-            // Disperse Animation
-            micBtn.classList.add('disperse');
-
-            // Wait for animation to finish before resetting
-            setTimeout(() => {
-                micBtn.classList.remove('recording');
-                micBtn.classList.remove('disperse');
-                document.body.classList.remove('recording-mode');
-
-                // Reset status text
-                const micStatus = document.getElementById('mic-status');
-                if (micStatus) {
-                    micStatus.textContent = '点击开始录音';
-                }
-            }, 600); // Match animation duration
+            // Note: Actual processing happens in onstop event
         }
     });
 }
 
-// Toggle camera visibility
-const toggleCameraButton = document.getElementById('toggle-camera');
-const videoContainer = document.getElementById('video-container');
-let cameraVisible = true;
+// Star Menu Logic
+function initStarMenu() {
+    const container = document.getElementById('star-menu-container');
+    const button = document.getElementById('star-button');
+    const menu = document.getElementById('glass-menu');
+    const toggleCameraItem = document.getElementById('menu-toggle-camera');
+    const toggleModelItem = document.getElementById('menu-toggle-model');
+    const modelList = document.getElementById('menu-model-list');
 
+    if (!container || !button) return;
 
-toggleCameraButton.addEventListener('click', () => {
-    cameraVisible = !cameraVisible;
-    videoContainer.style.display = cameraVisible ? 'block' : 'none';
-    toggleCameraButton.textContent = cameraVisible ? 'Hide Camera' : 'Show Camera';
-});
+    // Toggle Menu
+    button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('open');
+        button.classList.toggle('active');
+    });
 
-// Toggle model visibility - starts hidden by default
-const toggleModelButton = document.getElementById('toggle-model');
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) {
+            menu.classList.remove('open');
+            button.classList.remove('active');
+        }
+    });
 
-if (toggleModelButton) {
-    // Set initial state - model hidden by default
-    globalModelVisible = false;
-    toggleModelButton.textContent = 'Show Model';
-    toggleModelButton.classList.add('disabled');
+    // Camera Toggle - Default HIDDEN
+    let cameraVisible = false;
+    const videoContainer = document.getElementById('video-container');
+    videoContainer.style.display = 'none'; // Hide by default
+    toggleCameraItem.addEventListener('click', () => {
+        cameraVisible = !cameraVisible;
+        videoContainer.style.display = cameraVisible ? 'block' : 'none';
+        toggleCameraItem.innerHTML = cameraVisible ? '<span class="icon">●</span> Hide Camera' : '<span class="icon">○</span> Show Camera';
+    });
 
-    toggleModelButton.addEventListener('click', () => {
-        globalModelVisible = !globalModelVisible;
+    // Model Toggle - Default SHOWN
+    if (toggleModelItem) {
+        // Set initial state - model SHOWN by default
+        globalModelVisible = true;
 
-        // Force immediate update for all character models
-        characters.forEach(char => {
-            if (char.modelCharacter) {
-                char.modelCharacter.setVisible(globalModelVisible);
+        toggleModelItem.addEventListener('click', () => {
+            globalModelVisible = !globalModelVisible;
+
+            // Force immediate update for all character models
+            characters.forEach(char => {
+                if (char.modelCharacter) {
+                    char.modelCharacter.setVisible(globalModelVisible);
+                }
+            });
+
+            toggleModelItem.innerHTML = globalModelVisible ? '<span class="icon">●</span> Hide Model' : '<span class="icon">○</span> Show Model';
+        });
+    }
+
+    // Populate Model List
+    if (modelList) {
+        AVAILABLE_MODELS.forEach(model => {
+            const div = document.createElement('div');
+            div.className = 'menu-item model-option';
+            if (model.id === 'santa') div.classList.add('active'); // Default
+            div.textContent = model.name;
+
+            div.addEventListener('click', () => {
+                // Remove active class from all
+                document.querySelectorAll('.model-option').forEach(el => el.classList.remove('active'));
+                div.classList.add('active');
+
+                // Change model for all characters
+                characters.forEach(char => {
+                    if (char.setModel) {
+                        char.setModel(model.id);
+                    }
+                });
+            });
+
+            modelList.appendChild(div);
+        });
+    }
+}
+
+// Initialize the menu
+initStarMenu();
+
+// ==================== Menu Manager ====================
+class MenuManager {
+    constructor() {
+        this.isOpen = false;
+        this.currentIndex = 0;
+        this.menuContainer = document.getElementById('glass-menu');
+        this.menuItems = Array.from(document.querySelectorAll('.menu-item'));
+
+        // Initial setup
+        if (this.menuItems.length > 0) {
+            this.updateSelection();
+        }
+    }
+
+    toggle() {
+        this.isOpen = !this.isOpen;
+        if (this.menuContainer) {
+            if (this.isOpen) {
+                this.menuContainer.classList.add('open');
+                this.updateSelection();
+            } else {
+                this.menuContainer.classList.remove('open');
+            }
+        }
+        return this.isOpen;
+    }
+
+    navigate(direction) {
+        if (!this.isOpen) return;
+
+        this.currentIndex += direction;
+
+        // Loop navigation
+        if (this.currentIndex < 0) this.currentIndex = this.menuItems.length - 1;
+        if (this.currentIndex >= this.menuItems.length) this.currentIndex = 0;
+
+        this.updateSelection();
+    }
+
+    updateSelection() {
+        this.menuItems.forEach((item, index) => {
+            if (index === this.currentIndex) {
+                item.style.background = 'rgba(255, 255, 255, 0.2)';
+                item.style.boxShadow = '0 0 10px rgba(255, 255, 255, 0.2)';
+            } else {
+                item.style.background = 'rgba(255, 255, 255, 0.05)';
+                item.style.boxShadow = 'none';
             }
         });
 
-        toggleModelButton.textContent = globalModelVisible ? 'Hide Model' : 'Show Model';
-        toggleModelButton.classList.toggle('disabled', !globalModelVisible);
-    });
+        // Ensure visible
+        this.menuItems[this.currentIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+
+    triggerAction() {
+        if (!this.isOpen) return;
+        const item = this.menuItems[this.currentIndex];
+        if (item) {
+            console.log(`[Menu] Triggering action for: ${item.id}`);
+            item.click(); // Trigger click event
+
+            // Visual feedback
+            item.style.transform = 'scale(0.95)';
+            setTimeout(() => item.style.transform = 'scale(1)', 100);
+
+            // Special handling for some actions
+            if (item.id === 'menu-toggle-camera' || item.id === 'menu-toggle-model') {
+                // Update icon text maybe?
+                const icon = item.querySelector('.icon');
+                if (icon) {
+                    icon.textContent = icon.textContent === '○' ? '◉' : '○';
+                }
+            }
+        }
+    }
 }
+
+/**
+ * Initialize PS5 Controller Integration
+ */
+async function initPS5Controller() {
+    try {
+        console.log('[Skeleton] Initializing PS5 Controller...');
+
+        const menuManager = new MenuManager();
+
+
+        ps5Controller = new PS5SceneController({
+            deadzone: 0.15,
+            buttonDebounce: 200
+        });
+
+        // Set scene references
+        ps5Controller.setSceneReferences({
+            scene: scene,
+            camera: camera,
+            controls: controls,
+            snowEffect: snowEffect,
+            storyFragments: storyFragments,
+            characters: characters,
+            menuManager: menuManager // Pass menu manager
+        });
+
+        // UI Handling
+        const connectBtn = document.getElementById('menu-ps5-connect');
+        if (connectBtn) {
+            // Helper to set connected visual state
+            const setConnectedState = () => {
+                connectBtn.innerHTML = '<span class="icon">✅</span> PS5 Connected';
+                // Green tint style as requested
+                connectBtn.style.background = 'rgba(46, 204, 113, 0.2)';
+                connectBtn.style.borderColor = 'rgba(46, 204, 113, 0.5)';
+                connectBtn.style.pointerEvents = 'none'; // Lock it
+            };
+
+            // Try Auto Connect
+            const autoConnected = await ps5Controller.tryAutoConnect();
+            if (autoConnected) {
+                setConnectedState();
+            }
+
+            // Click Handler for Manual Connect
+            connectBtn.addEventListener('click', async () => {
+                if (ps5Controller.connected) return;
+
+                try {
+                    connectBtn.innerHTML = '<span class="icon">⏳</span> Connecting...';
+                    await ps5Controller.init(); // Triggers device picker
+                    setConnectedState();
+                } catch (error) {
+                    console.error('[Skeleton] PS5 connection failed:', error);
+                    connectBtn.innerHTML = '<span class="icon">❌</span> Failed';
+                    // Reset after 2s
+                    setTimeout(() => {
+                        if (!ps5Controller.connected) {
+                            connectBtn.innerHTML = '<span class="icon">🎮</span> Connect PS5';
+                        }
+                    }, 2000);
+                }
+            });
+        }
+
+    } catch (error) {
+        console.warn('[Skeleton] PS5 Controller initialization failed:', error);
+    }
+}
+
+// Call initialization
+initPS5Controller();
+
+// Rendering Loop for Snow System
+function renderLoop() {
+    requestAnimationFrame(renderLoop);
+
+    // Update snow particles
+    if (snowEffect) {
+        snowEffect.update();
+    }
+}
+
+// Start render loop
+renderLoop();

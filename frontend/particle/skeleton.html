@@ -4,13 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three.js Skeleton Visualization</title>
+    <title>Particle Christmas</title>
     <link rel="icon" href="data:,">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Montserrat:wght@300;400;600&family=Noto+Serif+SC:wght@300;400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=ZCOOL+XiaoWei&display=swap"
+        rel="stylesheet">
     <style>
         body {
             margin: 0;
             overflow: hidden;
             background-color: #000;
+            font-family: 'Montserrat', sans-serif;
         }
 
         #video-container {
@@ -46,145 +53,324 @@
             pointer-events: none;
         }
 
-        #toggle-camera {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            padding: 10px 20px;
-            background: rgba(255, 136, 0, 0.8);
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            font-family: sans-serif;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            z-index: 10;
-            transition: background 0.3s;
-        }
-
-        #toggle-camera:hover {
-            background: rgba(255, 136, 0, 1);
-        }
-
-        #toggle-model {
-            position: absolute;
-            bottom: 20px;
-            left: 160px;
-            padding: 10px 20px;
-            background: rgba(139, 69, 19, 0.8);
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            font-family: sans-serif;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            z-index: 10;
-            transition: background 0.3s;
-        }
-
-        #toggle-model:hover {
-            background: rgba(139, 69, 19, 1);
-        }
-
-        #toggle-model.disabled {
-            background: rgba(100, 100, 100, 0.8);
-        }
-
-        /* ========== Enhanced Mic Button - Christmas Theme ========== */
-        #mic-btn {
+        /* ========== VisionOS Glass Menu ========== */
+        #star-menu-container {
             position: absolute;
             bottom: 30px;
-            right: 30px;
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            background: linear-gradient(145deg, #1a3a2a, #0d1f16);
-            border: 3px solid transparent;
-            background-clip: padding-box;
-            cursor: pointer;
+            left: 30px;
             z-index: 100;
+        }
+
+        #star-button {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            cursor: pointer;
+            position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
-            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-            box-shadow:
-                0 4px 20px rgba(0, 0, 0, 0.4),
-                0 0 30px rgba(196, 30, 58, 0.2),
-                inset 0 2px 10px rgba(255, 255, 255, 0.05);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            /* Four-pointed star shape */
+            clip-path: polygon(50% 0%, 61% 35%, 100% 50%, 61% 65%, 50% 100%, 39% 65%, 0% 50%, 39% 35%);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+            overflow: hidden;
         }
 
-        /* Gradient border using pseudo-element */
-        #mic-btn::before {
+        #star-button::before {
             content: '';
             position: absolute;
-            inset: -3px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #c41e3a 0%, #228B22 50%, #ffd700 100%);
-            z-index: -1;
-            opacity: 0.8;
-            transition: opacity 0.3s, transform 0.3s;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+            transform: rotate(45deg);
+            animation: starShine 3s infinite;
         }
 
-        #mic-btn:hover {
-            transform: scale(1.1);
-            box-shadow:
-                0 6px 30px rgba(0, 0, 0, 0.5),
-                0 0 40px rgba(196, 30, 58, 0.4),
-                0 0 60px rgba(34, 139, 34, 0.3);
-        }
-
-        #mic-btn:hover::before {
-            opacity: 1;
-            animation: borderRotate 3s linear infinite;
-        }
-
-        @keyframes borderRotate {
+        @keyframes starShine {
             0% {
-                transform: rotate(0deg);
+                transform: translateX(-100%) rotate(45deg);
             }
 
             100% {
-                transform: rotate(360deg);
+                transform: translateX(100%) rotate(45deg);
             }
         }
 
-        /* Recording state - center of screen */
-        #mic-btn.recording {
-            bottom: 50%;
-            right: 50%;
-            transform: translate(50%, 50%) scale(1.8);
-            background: linear-gradient(145deg, #2d1b1b, #1a0f0f);
+        #star-button:hover {
+            transform: scale(1.1) rotate(90deg);
+            box-shadow: 0 0 25px rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #star-button.active {
+            transform: scale(0.9) rotate(45deg);
+            background: rgba(255, 215, 0, 0.3);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+        }
+
+        /* VisionOS Glass Menu Material */
+        #glass-menu {
+            position: absolute;
+            bottom: 80px;
+            left: 0;
+            width: 240px;
+
+            /* VisionOS Glass Effect */
+            background: rgba(255, 255, 255, 0.08);
+            /* Very light transparent */
+            backdrop-filter: blur(30px) saturate(180%);
+            /* High blur + saturation */
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
+
+            /* Simple border without gradient to avoid white line artifact */
+            border: 1px solid rgba(255, 255, 255, 0.12);
+
+            /* Reduced border radius */
+            border-radius: 12px;
+            padding: 16px;
+
+            /* Soft expansive shadow */
             box-shadow:
-                0 0 50px rgba(196, 30, 58, 0.6),
-                0 0 100px rgba(196, 30, 58, 0.3),
-                inset 0 0 20px rgba(255, 0, 0, 0.1);
+                0 25px 50px -12px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+
+            transform-origin: bottom left;
+            transform: scale(0.8);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+            max-height: 420px;
+            overflow-y: auto;
+            overflow-x: hidden;
+
+            /* Frosted texture overlay */
+            position: relative;
         }
 
-        #mic-btn.recording::before {
-            background: linear-gradient(135deg, #ff4444, #c41e3a, #ff6b6b);
+        /* Subtle noise texture for frosted glass */
+        #glass-menu::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noiseFilter)" opacity="0.03"/></svg>');
+            pointer-events: none;
+            border-radius: 12px;
+            opacity: 0.5;
+        }
+
+        #glass-menu.open {
+            transform: scale(1);
             opacity: 1;
-            animation: borderPulse 1.5s ease-in-out infinite;
+            pointer-events: auto;
         }
 
-        @keyframes borderPulse {
+        /* VisionOS Scrollbar - Minimalist & Refined */
+        #glass-menu::-webkit-scrollbar {
+            width: 2px;
+            /* Very narrow */
+        }
 
-            0%,
-            100% {
-                transform: scale(1);
-                opacity: 0.8;
+        #glass-menu::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #glass-menu::-webkit-scrollbar-thumb {
+            background: rgba(80, 80, 80, 0.5);
+            /* Dark gray */
+            border-radius: 2px;
+            transition: all 0.2s ease;
+        }
+
+        #glass-menu::-webkit-scrollbar-thumb:hover {
+            background: rgba(80, 80, 80, 0.9);
+            /* Bold on hover */
+            width: 6px;
+            /* Expand on hover */
+        }
+
+        /* Firefox scrollbar */
+        #glass-menu {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(80, 80, 80, 0.5) transparent;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            margin-bottom: 6px;
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            user-select: none;
+        }
+
+        .menu-item:hover {
+            background: rgba(255, 255, 255, 0.15);
+            padding-left: 18px;
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+        }
+
+        .menu-item .icon {
+            margin-right: 10px;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .menu-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+            margin: 12px 0;
+        }
+
+        .menu-title {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: rgba(255, 255, 255, 0.5);
+            margin: 8px 0 10px 6px;
+        }
+
+        .model-option {
+            font-size: 13px;
+            font-weight: 400;
+        }
+
+        .model-option.active {
+            background: rgba(10, 132, 255, 0.2);
+            /* iOS blue tint */
+            border: 1px solid rgba(10, 132, 255, 0.4);
+            color: rgba(100, 200, 255, 1);
+            font-weight: 600;
+        }
+
+        /* ========== Enhanced Voice Button (Mirrored Position) ========== */
+        #voice-btn-container {
+            position: absolute;
+            bottom: 28px;
+            right: 28px;
+            /* Mirrors star button's left: 30px */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 100;
+        }
+
+        #voice-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+            /* Reduced shadow */
+            overflow: hidden;
+            /* For shimmer effect */
+        }
+
+        /* Shimmer effect like star button */
+        #voice-btn::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+            transform: rotate(45deg);
+            animation: voiceShimmer 3s infinite;
+        }
+
+        @keyframes voiceShimmer {
+            0% {
+                transform: translateX(-100%) rotate(45deg);
             }
 
-            50% {
-                transform: scale(1.05);
+            100% {
+                transform: translateX(100%) rotate(45deg);
+            }
+        }
+
+        #voice-btn:hover {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 25px rgba(255, 255, 255, 0.4);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+
+        .lightbulb-icon {
+            width: 36px;
+            height: 36px;
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.8);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: all 0.3s ease;
+        }
+
+        #voice-btn:hover .lightbulb-icon {
+            stroke: #ffd700;
+            fill: rgba(255, 215, 0, 0.2);
+            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+        }
+
+        #voice-btn.recording {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 215, 0, 0.8);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+            transform: scale(1.1);
+        }
+
+        #voice-btn.recording .lightbulb-icon {
+            stroke: #ffd700;
+            fill: #ffd700;
+            filter: drop-shadow(0 0 15px rgba(255, 215, 0, 1));
+        }
+
+        #voice-btn.processing .lightbulb-icon {
+            animation: pulse-bulb 1s infinite alternate;
+        }
+
+        @keyframes pulse-bulb {
+            from {
+                filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5));
+                opacity: 0.7;
+            }
+
+            to {
+                filter: drop-shadow(0 0 20px rgba(255, 215, 0, 1));
                 opacity: 1;
             }
         }
 
-        /* Audio wave rings */
-        #mic-btn.recording::after {
-            content: '';
+        .wave-ring {
             position: absolute;
             top: 50%;
             left: 50%;
@@ -192,164 +378,59 @@
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            border: 2px solid rgba(255, 100, 100, 0.6);
-            animation: audioWave 1.2s ease-out infinite;
-            z-index: -2;
+            border: 2px solid rgba(255, 215, 0, 0.6);
+            opacity: 0;
+            pointer-events: none;
+            z-index: -1;
         }
 
-        @keyframes audioWave {
+        #voice-btn.recording .wave-ring {
+            animation: ripple-wave 2s infinite cubic-bezier(0, 0.2, 0.8, 1);
+        }
+
+        #voice-btn.recording .wave-ring:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        #voice-btn.recording .wave-ring:nth-child(2) {
+            animation-delay: 0.5s;
+        }
+
+        #voice-btn.recording .wave-ring:nth-child(3) {
+            animation-delay: 1.0s;
+        }
+
+        @keyframes ripple-wave {
             0% {
                 width: 100%;
                 height: 100%;
                 opacity: 0.8;
+                border-width: 2px;
             }
 
             100% {
                 width: 250%;
                 height: 250%;
                 opacity: 0;
+                border-width: 0px;
             }
         }
 
-        /* Disperse Animation */
-        #mic-btn.disperse {
-            animation: disperse 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-        }
-
-        @keyframes disperse {
-            0% {
-                transform: translate(50%, 50%) scale(1.8);
-                opacity: 1;
-                filter: blur(0);
-            }
-
-            50% {
-                transform: translate(50%, 50%) scale(2.5);
-                opacity: 0.5;
-                filter: blur(2px);
-            }
-
-            100% {
-                transform: translate(50%, 50%) scale(0.8);
-                opacity: 0;
-                filter: blur(5px);
-            }
-        }
-
-        #mic-icon {
-            width: 32px;
-            height: 32px;
-            fill: url(#micGradient);
-            transition: all 0.3s ease;
-            filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.5));
-        }
-
-        #mic-btn:hover #mic-icon {
-            fill: #ffd700;
-            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
-            transform: scale(1.1);
-        }
-
-        #mic-btn.recording #mic-icon {
-            fill: #ff6b6b;
-            filter: drop-shadow(0 0 10px rgba(255, 100, 100, 0.8));
-            animation: micPulse 0.8s ease-in-out infinite;
-        }
-
-        @keyframes micPulse {
-
-            0%,
-            100% {
-                transform: scale(1);
-            }
-
-            50% {
-                transform: scale(1.15);
-            }
-        }
-
-        /* Status text below mic button */
-        #mic-status {
-            position: absolute;
-            bottom: -35px;
-            left: 50%;
-            transform: translateX(-50%);
+        #voice-status {
+            margin-top: 15px;
             font-family: 'Segoe UI', sans-serif;
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.8);
-            white-space: nowrap;
-            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
             opacity: 0;
             transition: opacity 0.3s;
-        }
-
-        #mic-btn:hover #mic-status,
-        #mic-btn.recording #mic-status {
-            opacity: 1;
-        }
-
-        #mic-btn.recording #mic-status {
-            color: #ff8888;
-            animation: statusBlink 1s ease-in-out infinite;
-        }
-
-        @keyframes statusBlink {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.5;
-            }
-        }
-
-        /* Floating particles around recording button */
-        .mic-particle {
-            position: absolute;
-            width: 6px;
-            height: 6px;
-            background: radial-gradient(circle, #ffd700 0%, transparent 70%);
-            border-radius: 50%;
             pointer-events: none;
-            opacity: 0;
-        }
-
-        #mic-btn.recording .mic-particle {
-            animation: particleFloat 2s ease-in-out infinite;
-        }
-
-        #mic-btn.recording .mic-particle:nth-child(2) {
-            animation-delay: 0.3s;
-        }
-
-        #mic-btn.recording .mic-particle:nth-child(3) {
-            animation-delay: 0.6s;
-        }
-
-        #mic-btn.recording .mic-particle:nth-child(4) {
-            animation-delay: 0.9s;
-        }
-
-        #mic-btn.recording .mic-particle:nth-child(5) {
-            animation-delay: 1.2s;
-        }
-
-        @keyframes particleFloat {
-            0% {
-                opacity: 0;
-                transform: translateY(0) rotate(0deg);
-            }
-
-            20% {
-                opacity: 1;
-            }
-
-            100% {
-                opacity: 0;
-                transform: translateY(-80px) rotate(360deg);
-            }
+            background: rgba(0, 0, 0, 0.4);
+            padding: 4px 10px;
+            border-radius: 12px;
+            backdrop-filter: blur(4px);
+            display: none;
+            /* Hide tooltip completely */
         }
 
         #recording-overlay {
@@ -372,222 +453,245 @@
             pointer-events: auto;
         }
 
+        /* ========== Vision Pro Style Story Card UI ========== */
         #poem-container {
-            position: absolute;
+            position: fixed;
+            /* Perfectly Centered */
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%) scale(0.8);
-            width: 85%;
-            max-width: 550px;
-            background: linear-gradient(135deg,
-                    rgba(20, 60, 40, 0.95) 0%,
-                    rgba(30, 80, 50, 0.95) 50%,
-                    rgba(20, 60, 40, 0.95) 100%);
-            border: 4px solid #c41e3a;
-            border-radius: 20px;
-            padding: 35px 30px;
-            text-align: center;
-            font-family: 'Georgia', 'Noto Serif SC', serif;
-            color: #f5f5dc;
-            box-shadow:
-                0 0 30px rgba(255, 215, 0, 0.4),
-                0 0 60px rgba(196, 30, 58, 0.3),
-                inset 0 0 30px rgba(255, 215, 0, 0.1);
-            display: none;
-            z-index: 30;
+            transform: translate(-50%, -50%) scale(0.95);
+            /* Responsive Size */
+            width: 70vw;
+            height: 65vh;
+            max-width: 1100px;
+            max-height: 750px;
+
+            pointer-events: none;
+            z-index: 1000;
             opacity: 0;
-            transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+            /* Apple-like ease */
+
+            /* Card Shape: Large Rounded Rect */
+            border-radius: 40px;
+            overflow: hidden;
+
+            /* Deep Shadows for "Floating" effect */
+            box-shadow:
+                0 40px 100px -20px rgba(0, 0, 0, 0.5),
+                0 30px 60px -30px rgba(0, 0, 0, 0.3),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+            /* Subtle bezel */
+
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            /* Text at bottom */
+            padding-bottom: 40px;
+            /* Space from bottom edge */
         }
 
         #poem-container.show {
-            display: block;
             opacity: 1;
+            pointer-events: auto;
             transform: translate(-50%, -50%) scale(1);
         }
 
-        #poem-container.hiding {
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0.5);
-        }
-
-        /* 滑动切换动画 */
-        #poem-container.slide-left {
-            animation: slideOutLeft 0.3s ease-out forwards;
-        }
-
-        #poem-container.slide-right {
-            animation: slideOutRight 0.3s ease-out forwards;
-        }
-
-        @keyframes slideOutLeft {
-            0% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 1;
-            }
-
-            50% {
-                transform: translate(-70%, -50%) scale(0.95);
-                opacity: 0.5;
-            }
-
-            100% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 1;
-            }
-        }
-
-        @keyframes slideOutRight {
-            0% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 1;
-            }
-
-            50% {
-                transform: translate(-30%, -50%) scale(0.95);
-                opacity: 0.5;
-            }
-
-            100% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 1;
-            }
-        }
-
-        /* 故事索引指示器 */
-        #story-indicator {
-            position: absolute;
-            bottom: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 8px;
-        }
-
-        .indicator-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: rgba(255, 215, 0, 0.3);
-            transition: all 0.3s ease;
-        }
-
-        .indicator-dot.active {
-            background: #ffd700;
-            box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
-            transform: scale(1.3);
-        }
-
-        #poem-container h2 {
-            margin: 0 0 15px 0;
-            color: #ffd700;
-            font-size: 26px;
-            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-            letter-spacing: 3px;
-        }
-
-        #user-text-container {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 10px;
-            padding: 12px 15px;
-            margin-bottom: 20px;
-            border-left: 3px solid #ffd700;
-        }
-
-        #user-text-label {
-            font-size: 12px;
-            color: #aaa;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        #user-text {
-            font-size: 16px;
-            color: #e0e0e0;
-            font-style: italic;
-            line-height: 1.4;
-        }
-
-        .poem-divider {
-            width: 60%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #ffd700, transparent);
-            margin: 15px auto;
-        }
-
-        #poem-text {
-            font-size: 22px;
-            line-height: 2;
-            white-space: pre-wrap;
-            color: #fff;
-            text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
-            letter-spacing: 2px;
-        }
-
-        .decoration {
-            position: absolute;
-            font-size: 35px;
-            filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5));
-        }
-
-        .top-left {
-            top: -18px;
-            left: -12px;
-        }
-
-        .top-right {
-            top: -18px;
-            right: -12px;
-        }
-
-        .bottom-left {
-            bottom: -18px;
-            left: -12px;
-        }
-
-        .bottom-right {
-            bottom: -18px;
-            right: -12px;
-        }
-
-        /* Snowflake animation on poem card */
-        .snowflake-bg {
+        /* Background Image Layer (Clips to Card) */
+        #poem-bg {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none;
-            overflow: hidden;
-            border-radius: 20px;
+            background-size: cover;
+            background-position: center;
+            opacity: 0;
+            transform: scale(1.15);
+            /* Start slightly larger */
+            transition: opacity 1.2s ease;
+            z-index: -1;
         }
 
-        .snowflake-bg::before {
-            content: '❄';
-            position: absolute;
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.3);
-            animation: snowfall 8s linear infinite;
+        /* "Scale Down" Animation on Show */
+        #poem-container.show #poem-bg {
+            opacity: 1;
+            /* Animation applied via CSS Keyframes or transition */
+            animation: kenBurnsZoom 20s ease-out forwards;
         }
 
-        @keyframes snowfall {
+        @keyframes kenBurnsZoom {
             0% {
-                transform: translateY(-20px) rotate(0deg);
-                opacity: 0;
-            }
-
-            10% {
-                opacity: 0.5;
-            }
-
-            90% {
-                opacity: 0.5;
+                transform: scale(1.15);
             }
 
             100% {
-                transform: translateY(100%) rotate(360deg);
-                opacity: 0;
+                transform: scale(1.0);
             }
+        }
+
+        /* Vision Pro Style Glass Text Pane - Enhanced Liquid Glass */
+        .story-glass-pane {
+            position: relative;
+            /* Floating smaller UI */
+            width: 85%;
+            margin-bottom: 20px;
+
+            /* Multi-layer Liquid Glass Effect */
+            background: linear-gradient(135deg,
+                    rgba(255, 255, 255, 0.12) 0%,
+                    rgba(255, 255, 255, 0.06) 50%,
+                    rgba(255, 255, 255, 0.08) 100%);
+
+            /* High-quality blur with vivid saturation */
+            backdrop-filter: blur(40px) saturate(200%) brightness(1.1);
+            -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.1);
+
+            border-radius: 28px;
+
+            /* Subtle border without gradient to avoid white line artifact */
+            border: 1px solid rgba(255, 255, 255, 0.15);
+
+            /* Multi-layer Depth Shadows */
+            box-shadow:
+                /* Outer glow */
+                0 8px 32px rgba(0, 0, 0, 0.15),
+                /* Depth shadow */
+                0 30px 60px -15px rgba(0, 0, 0, 0.3),
+                /* Edge highlight */
+                inset 0 1px 2px rgba(255, 255, 255, 0.3),
+                /* Inner ambient light */
+                inset 0 0 60px rgba(255, 255, 255, 0.05);
+
+            padding: 32px 44px;
+
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            align-items: center;
+            text-align: center;
+
+            color: rgba(255, 255, 255, 0.95);
+
+            /* Slide up enter animation */
+            transform: translateY(20px);
+            transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.6s ease;
+            opacity: 0;
+
+            /* Subtle texture overlay */
+            overflow: hidden;
+        }
+
+        /* Gradient overlay for depth */
+        .story-glass-pane::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(180deg,
+                    rgba(255, 255, 255, 0.08) 0%,
+                    transparent 40%,
+                    transparent 70%,
+                    rgba(0, 0, 0, 0.05) 100%);
+            pointer-events: none;
+            border-radius: 28px;
+        }
+
+        /* Frosted noise texture */
+        .story-glass-pane::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" /></filter><rect width="100%" height="100%" filter="url(%23noise)" opacity="0.04"/></svg>');
+            pointer-events: none;
+            border-radius: 28px;
+            opacity: 0.6;
+            mix-blend-mode: overlay;
+        }
+
+        #poem-container.show .story-glass-pane {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Typography - Vision Pro Cleanliness */
+        #user-text {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: rgba(255, 255, 255, 0.65);
+            margin-bottom: 4px;
+
+            /* Remove old border styling */
+            border: none;
+            padding: 0;
+            display: block;
+        }
+
+        #poem-text {
+            /* SF Pro Display style typography */
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", serif;
+            font-weight: 500;
+            font-size: 1.4rem;
+            /* Smaller, sharper */
+            line-height: 1.5;
+            letter-spacing: -0.01em;
+
+            max-width: 95%;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            max-height: 30vh;
+
+            /* Clean white w/ slight transparency */
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            /* Softer shadow */
+        }
+
+        /* Font Variations - Kept but refined */
+        .font-serif #poem-text {
+            font-family: "New York", "Times New Roman", serif;
+        }
+
+        .font-sans #poem-text {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+        }
+
+        .font-calligraphy #poem-text {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 1.6rem;
+            font-weight: 400;
+        }
+
+        /* Progress Bar (Vision Pro Style - Thin & Rounded) */
+        #story-progress-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.15);
+            border-bottom-left-radius: 28px;
+            /* Match container */
+            border-bottom-right-radius: 28px;
+            overflow: hidden;
+        }
+
+        #story-progress-bar {
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            /* Pure white/silver progress */
+            width: 0%;
+            transition: width 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+            /* Glowing tip */
         }
     </style>
 </head>
@@ -599,48 +703,55 @@
     </div>
     <div id="canvas-container"></div>
     <div id="recording-overlay"></div>
-    <button id="toggle-camera">Hide Camera</button>
-    <button id="toggle-model">Show Model</button>
 
-    <button id="mic-btn">
-        <!-- SVG Gradient Definition -->
-        <svg width="0" height="0" style="position:absolute;">
-            <defs>
-                <linearGradient id="micGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
-                    <stop offset="50%" style="stop-color:#ffec8b;stop-opacity:1" />
-                    <stop offset="100%" style="stop-color:#ffd700;stop-opacity:1" />
-                </linearGradient>
-            </defs>
-        </svg>
-        <!-- Floating Particles -->
-        <div class="mic-particle" style="top: -10px; left: 50%;"></div>
-        <div class="mic-particle" style="top: 0; left: 20%;"></div>
-        <div class="mic-particle" style="top: 0; right: 20%;"></div>
-        <div class="mic-particle" style="top: 10px; left: 10%;"></div>
-        <div class="mic-particle" style="top: 10px; right: 10%;"></div>
-        <!-- Mic Icon -->
-        <svg id="mic-icon" viewBox="0 0 24 24">
-            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-            <path
-                d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-        </svg>
-        <!-- Status Text -->
-        <span id="mic-status">点击开始录音</span>
-    </button>
+    <div id="star-menu-container">
+        <div id="glass-menu">
+            <div class="menu-item" id="menu-ps5-connect">
+                <span class="icon">🎮</span> Connect PS5
+            </div>
+            <div class="menu-item" id="menu-toggle-camera">
+                <span class="icon">○</span> Show Camera
+            </div>
+            <div class="menu-item" id="menu-toggle-model">
+                <span class="icon">●</span> Hide Model
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-title">Select Model</div>
+            <div id="menu-model-list">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+        <div id="star-button"></div>
+    </div>
+
+    <div id="voice-btn-container">
+        <button id="voice-btn">
+            <!-- Wave Rings for Animation -->
+            <div class="wave-ring"></div>
+            <div class="wave-ring"></div>
+            <div class="wave-ring"></div>
+
+            <!-- Lightbulb Icon SVG -->
+            <svg class="lightbulb-icon" viewBox="0 0 24 24">
+                <path
+                    d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z" />
+            </svg>
+        </button>
+    </div>
 
     <div id="poem-container">
-        <div class="snowflake-bg"></div>
-        <div class="decoration top-left">🎄</div>
-        <div class="decoration top-right">⭐</div>
-        <h2>✨ 铃儿响叮当 ✨</h2>
-        <div id="user-text-container">
+        <!-- Background Image Layer -->
+        <div id="poem-bg"></div>
+
+        <!-- Progress Bar -->
+        <div class="story-glass-pane">
             <div id="user-text"></div>
+            <div id="poem-text"></div>
+
+            <div id="story-progress-container">
+                <div id="story-progress-bar"></div>
+            </div>
         </div>
-        <div class="poem-divider"></div>
-        <div id="poem-text"></div>
-        <div class="decoration bottom-left">🎁</div>
-        <div class="decoration bottom-right">🔔</div>
     </div>
 
     <script type="importmap">
@@ -655,7 +766,7 @@
         // Set default model to Santa
         window.DEFAULT_MODEL_ID = 'santa';
     </script>
-    <script type="module" src="./js/skeleton.js?v=3"></script>
+    <script type="module" src="./js/skeleton.js?v=4"></script>
 </body>
 
 </html>

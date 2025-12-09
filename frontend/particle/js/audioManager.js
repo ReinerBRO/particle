@@ -23,22 +23,22 @@ async function trimSilence(audioBlob) {
 
 export async function generateEmotionPoem(audioBlob) {
     // 1. 预处理：截取有效语音片段（移除静音头尾）
-    const trimmedAudio = await trimSilence(audioBlob); 
+    const trimmedAudio = await trimSilence(audioBlob);
     const base64Audio = await blobToBase64(trimmedAudio);
-  
+
     // 2. 构造请求
     // 发送给 Python 后端，后端负责 ASR 和 LLM 调用
     // 使用绝对路径以支持跨端口调用（如前端在 5500，后端在 3000）
     const response = await fetch('http://localhost:3000/api/generate-poem', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        audio: base64Audio
-      })
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            audio: base64Audio
+        })
     });
-  
+
     if (!response.ok) {
         const err = await response.text();
         console.error("API Error:", err);
@@ -46,13 +46,17 @@ export async function generateEmotionPoem(audioBlob) {
     }
 
     const data = await response.json();
-    
+
+    if (data.code === 'NO_SPEECH') {
+        throw new Error('NO_SPEECH');
+    }
+
     // API 响应格式: { text: poem_text, userText: asr_text, imageUrl: url }
     const result = {
         userWords: data.userText || "...",
         poem: data.text || "雪落无声心自暖\n星光点点映笑颜\n风起云涌皆过客\n将有好事在明天",
         imageUrl: data.imageUrl || ""
     };
-    
+
     return result;
 }

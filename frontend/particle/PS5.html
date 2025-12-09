@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>PS5 手柄 WebHID 专用调试器</title>
+    <style>
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Segoe UI', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #00ffcc;
+            margin-bottom: 10px;
+        }
+
+        .warning {
+            background: #003333;
+            color: #00ffcc;
+            padding: 10px;
+            border: 1px solid #00ffcc;
+            margin-bottom: 20px;
+            font-size: 14px;
+            max-width: 800px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #0088cc;
+            color: white;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #00aaff;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        .dashboard {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            max-width: 1000px;
+        }
+
+        .panel {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .panel h3 {
+            color: #aaa;
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            border-bottom: 1px solid #444;
+            width: 100%;
+            text-align: center;
+            padding-bottom: 5px;
+        }
+
+        /* 触控板区域 (加宽) */
+        .panel.wide {
+            width: 620px;
+        }
+
+        #touchpad-container {
+            position: relative;
+            width: 600px;
+            height: 300px;
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .touch-point {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: none;
+            z-index: 10;
+        }
+
+        #touch1 {
+            background: rgba(0, 255, 204, 0.8);
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px #00ffcc;
+        }
+
+        #touch2 {
+            background: rgba(255, 0, 100, 0.8);
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px #ff0064;
+        }
+
+        /* 新增第三指样式 */
+        #touch3 {
+            background: rgba(255, 255, 0, 0.8);
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px #ffff00;
+        }
+
+        /* 3D 姿态展示 */
+        .scene {
+            width: 150px;
+            height: 150px;
+            perspective: 400px;
+            margin: 20px;
+        }
+
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateX(0deg) rotateY(0deg);
+            transition: transform 0.1s;
+        }
+
+        .face {
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            border: 2px solid #00ffcc;
+            opacity: 0.6;
+            background: rgba(0, 255, 204, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #fff;
+        }
+
+        .face.front {
+            transform: translateZ(75px);
+        }
+
+        .face.back {
+            transform: rotateY(180deg) translateZ(75px);
+        }
+
+        .face.right {
+            transform: rotateY(90deg) translateZ(75px);
+            background: rgba(255, 0, 100, 0.1);
+            border-color: #ff0064;
+        }
+
+        .face.left {
+            transform: rotateY(-90deg) translateZ(75px);
+            background: rgba(255, 0, 100, 0.1);
+            border-color: #ff0064;
+        }
+
+        .face.top {
+            transform: rotateX(90deg) translateZ(75px);
+            background: rgba(255, 255, 0, 0.1);
+            border-color: #ffff00;
+        }
+
+        .face.bottom {
+            transform: rotateX(-90deg) translateZ(75px);
+            background: rgba(255, 255, 0, 0.1);
+            border-color: #ffff00;
+        }
+
+        .sensor-vals {
+            font-size: 12px;
+            color: #888;
+            font-family: monospace;
+            width: 100%;
+        }
+
+        .val-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+
+        /* 麦克风条 */
+        #mic-bar-container {
+            width: 100%;
+            height: 20px;
+            background: #111;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+            border: 1px solid #555;
+        }
+
+        #mic-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00ff00, #ffff00, #ff0000);
+            transition: width 0.05s;
+        }
+
+        #data-log {
+            width: 100%;
+            max-width: 960px;
+            height: 60px;
+            background: #000;
+            border: 1px solid #444;
+            font-family: monospace;
+            color: #0f0;
+            padding: 10px;
+            margin-top: 20px;
+            font-size: 12px;
+            overflow-y: auto;
+        }
+
+        .disabled-text {
+            color: #555;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>PS5 手柄 WebHID 专用调试器 <span id="connection-status" style="font-size:14px; color:#666">(未连接)</span></h1>
+
+    <div class="warning">
+        ⚠️ <b>纯净模式说明：</b><br>
+        本代码仅包含 <b>WebHID</b> 核心逻辑，不包含标准 API 降级代码。<br>
+        请务必通过 <b>USB 连接</b> 并在 <b>本地 HTML 文件</b> 中运行，否则无法获取硬件权限。
+    </div>
+
+    <div class="dashboard">
+
+        <!-- 触控板面板 -->
+        <div class="panel wide">
+            <h3>触控板 (Touchpad) - 多点测试</h3>
+            <div id="touchpad-container">
+                <div id="touch1" class="touch-point"></div>
+                <div id="touch2" class="touch-point"></div>
+                <!-- 新增第三指 -->
+                <div id="touch3" class="touch-point"></div>
+                <div style="position: absolute; bottom: 10px; left: 10px; color: #555; pointer-events: none;">DualSense
+                    Touch Area</div>
+            </div>
+        </div>
+
+        <!-- 传感器面板 -->
+        <div class="panel">
+            <h3>体感姿态 (Motion)</h3>
+            <div id="sensor-visual" class="scene">
+                <div id="cube" class="cube">
+                    <div class="face front">F</div>
+                    <div class="face back">B</div>
+                    <div class="face right">R</div>
+                    <div class="face left">L</div>
+                    <div class="face top">T</div>
+                    <div class="face bottom">Btm</div>
+                </div>
+            </div>
+            <div id="sensor-data" class="sensor-vals">
+                <div class="disabled-text" style="text-align:center; padding: 20px;">等待设备连接...</div>
+            </div>
+        </div>
+
+        <!-- 麦克风面板 -->
+        <div class="panel">
+            <h3>麦克风 (Microphone)</h3>
+            <button id="btn-mic" onclick="initMic()">🎙️ 启用麦克风</button>
+            <div id="mic-status" style="font-size:12px; color:#888; margin-top:5px">未启动</div>
+            <div id="mic-bar-container">
+                <div id="mic-bar"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <div style="margin-top: 20px;">
+        <button onclick="connectHandler()" style="font-size: 16px; padding: 12px 30px;">⚡ 连接 PS5 手柄 (WebHID)</button>
+    </div>
+
+    <div id="data-log">系统就绪...</div>
+
+    <script>
+        let device;
+
+        // 音频相关
+        let audioContext;
+        let analyser;
+        let micStream;
+
+        async function connectHandler() {
+            try {
+                if (!navigator.hid) throw new Error("浏览器不支持 WebHID API");
+
+                const filters = [{ vendorId: 0x054c, productId: 0x0ce6 }];
+                const devices = await navigator.hid.requestDevice({ filters });
+
+                if (devices.length > 0) {
+                    device = devices[0];
+                    await device.open();
+                    device.addEventListener("inputreport", handleInput);
+                    await initDevice(); // 激活传感器
+
+                    // 更新 UI
+                    document.getElementById('connection-status').innerText = "(已连接)";
+                    document.getElementById('connection-status').style.color = "#0f0";
+                    document.getElementById('sensor-data').innerHTML = ""; // 清除等待文字
+
+                    log(`连接成功: ${device.productName}`);
+                }
+            } catch (err) {
+                console.error(err);
+                log(`连接失败: ${err.message}`);
+                alert(`连接错误:\n${err.message}\n\n请检查：\n1. 是否使用 Chrome/Edge\n2. 是否在本地直接运行 HTML 文件 (非 iframe/沙箱)`);
+            }
+        }
+
+        // --- WebHID 逻辑 ---
+        async function initDevice() {
+            // 发送 Feature Report 激活高级模式
+            const data = new Uint8Array(47).fill(0);
+            data[0] = 0x02;
+            data[1] = 0xFF; // Flags
+            data[42] = 0; data[43] = 255; data[44] = 0; // LED 设为绿色
+            try { await device.sendReport(0x02, data); } catch (e) { }
+        }
+
+        function handleInput(event) {
+            const { data, reportId } = event;
+            if (reportId !== 0x01) return;
+
+            // Offset 修正：判断数据包是否包含 ReportID
+            let offset = 0;
+            if (data.getUint8(0) === 0x01) offset = 1;
+
+            // 1. 处理触控 (Bytes 32+)
+            // Touch 1: Offset 32 (33 with ID)
+            processTouch(data, 32 + offset, 'touch1');
+
+            // Touch 2: Offset 36 (37 with ID)
+            processTouch(data, 36 + offset, 'touch2');
+
+            // Touch 3: Offset 40 (41 with ID)
+            // 注意：DualSense 标准协议通常只发2个点，这里尝试读取紧随其后的4字节
+            processTouch(data, 40 + offset, 'touch3');
+
+            // 2. 处理传感器 (Bytes 16-27)
+            if (data.byteLength >= 28 + offset) {
+                processSensors(data, offset);
+            }
+        }
+
+        function processTouch(data, startIndex, elementId) {
+            const el = document.getElementById(elementId);
+            // 安全检查
+            if (data.byteLength < startIndex + 4) return;
+
+            const info = data.getUint8(startIndex);
+            // 最高位(bit 7)为0表示 Active (有触控)
+            // 注意：如果读取到的是全0数据(0x00)，也会判定为 Active，坐标(0,0)
+            // 这可能会在左上角显示一个“鬼影”点，这是预期内的调试行为
+            const isActive = !(info & 0x80);
+
+            if (isActive) {
+                const b1 = data.getUint8(startIndex + 1);
+                const b2 = data.getUint8(startIndex + 2);
+                const b3 = data.getUint8(startIndex + 3);
+
+                // 解析 12-bit 坐标
+                const x = ((b2 & 0x0F) << 8) | b1;
+                const y = (b3 << 4) | ((b2 & 0xF0) >> 4);
+
+                // 映射到 UI 尺寸 (PS5触控板分辨率约为 1920x1080)
+                const uiX = (x / 1920) * 600;
+                const uiY = (y / 1080) * 300;
+
+                el.style.display = 'block';
+                el.style.left = uiX + 'px';
+                el.style.top = uiY + 'px';
+            } else {
+                el.style.display = 'none';
+            }
+        }
+
+        function processSensors(data, offset) {
+            // 数据格式: Int16 LE (小端序)
+            const gx = data.getInt16(16 + offset, true);
+            const gy = data.getInt16(18 + offset, true);
+            const gz = data.getInt16(20 + offset, true);
+            const ax = data.getInt16(22 + offset, true);
+            const ay = data.getInt16(24 + offset, true);
+            const az = data.getInt16(26 + offset, true);
+
+            // 更新 UI 数值
+            const html = `
+                <div class="val-row"><span>Gyro X:</span><span>${gx}</span></div>
+                <div class="val-row"><span>Gyro Y:</span><span>${gy}</span></div>
+                <div class="val-row"><span>Gyro Z:</span><span>${gz}</span></div>
+                <hr style="border-color:#444; margin:2px 0">
+                <div class="val-row"><span>Accel X:</span><span>${ax}</span></div>
+                <div class="val-row"><span>Accel Y:</span><span>${ay}</span></div>
+                <div class="val-row"><span>Accel Z:</span><span>${az}</span></div>
+            `;
+            document.getElementById('sensor-data').innerHTML = html;
+
+            // 更新 3D 立方体姿态 (简单的重力感应映射)
+            const rotX = (ay / 8000) * 90;
+            const rotY = (ax / 8000) * 90;
+            const cube = document.getElementById('cube');
+            cube.style.transform = `rotateX(${rotX}deg) rotateY(0deg) rotateZ(${-rotY}deg)`;
+        }
+
+        // --- 麦克风逻辑 (Audio API) ---
+        async function initMic() {
+            const btn = document.getElementById('btn-mic');
+            const status = document.getElementById('mic-status');
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 32;
+
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+
+                micStream = stream;
+                status.innerText = "监听中...";
+                btn.disabled = true;
+                btn.innerText = "麦克风已启动";
+
+                startMicVisualizer();
+                log("麦克风初始化成功");
+
+            } catch (err) {
+                console.error(err);
+                status.innerText = "启动失败";
+                log("麦克风错误: " + err.message);
+            }
+        }
+
+        function startMicVisualizer() {
+            const bar = document.getElementById('mic-bar');
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            function draw() {
+                if (!micStream) return;
+                requestAnimationFrame(draw);
+
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+                const average = sum / bufferLength;
+
+                let pct = (average / 128) * 100;
+                if (pct > 100) pct = 100;
+                bar.style.width = pct + '%';
+            }
+            draw();
+        }
+
+        function log(msg) {
+            const el = document.getElementById('data-log');
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML = `[${time}] ${msg}<br>` + el.innerHTML;
+        }
+
+    </script>
+</body>
+
+</html>

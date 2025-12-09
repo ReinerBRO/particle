@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>PS5 触控板图片缩放演示</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* 顶部状态栏 */
+        #header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+            backdrop-filter: blur(5px);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #00ffcc;
+        }
+
+        #status-bar {
+            font-family: monospace;
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        button {
+            padding: 8px 20px;
+            background: #0088cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #00aaff;
+        }
+
+        /* 图片容器 */
+        #viewport {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background-image: radial-gradient(circle, #222 1px, transparent 1px);
+            background-size: 30px 30px;
+            /* 网格背景 */
+            position: relative;
+        }
+
+        /* 图片本身 */
+        #target-image {
+            max-width: 80%;
+            max-height: 80%;
+            /* 关键：设置变换原点为中心，确保缩放时以中心为基准 */
+            transform-origin: center center;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            /* 默认无过渡，JS控制动态过渡 */
+            transition: none;
+            will-change: transform;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        /* 触控光标 (调试用) */
+        .cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: none;
+            z-index: 200;
+        }
+
+        #cursor1 {
+            background: rgba(0, 255, 204, 0.5);
+            box-shadow: 0 0 10px #00ffcc;
+        }
+
+        #cursor2 {
+            background: rgba(255, 0, 100, 0.5);
+            box-shadow: 0 0 10px #ff0064;
+        }
+
+        /* 操作提示 */
+        #guide {
+            position: absolute;
+            bottom: 30px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #ccc;
+            pointer-events: none;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="header">
+        <h1>PS5 Touch Gallery</h1>
+        <div id="status-bar">等待连接... (请使用 USB)</div>
+        <button onclick="connectHandler()">⚡ 连接手柄</button>
+    </div>
+
+    <!-- 视口 -->
+    <div id="viewport">
+        <!-- 你的图片，添加了 onerror 以防图片加载失败 -->
+        <img id="target-image" src="recraftv3.webp" alt="Preview Image"
+            onerror="this.onerror=null; this.src='https://placehold.co/800x600/222/999?text=Image+Not+Found';">
+    </div>
+
+    <!-- 触控点光标 (显示手指位置) -->
+    <div id="cursor1" class="cursor"></div>
+    <div id="cursor2" class="cursor"></div>
+
+    <div id="guide">
+        ✌️ <b>双指捏合</b> 缩放图片 (中心固定)<br>
+        👋 <b>松开双手</b> 自动恢复原始大小
+    </div>
+
+    <script>
+        let device;
+
+        // 变换状态
+        let transform = {
+            scale: 1,
+            x: 0,
+            y: 0
+        };
+
+        // 上一帧的触控数据
+        let prevTouchState = {
+            t1: null,
+            t2: null,
+            dist: 0,
+            centerX: 0,
+            centerY: 0
+        };
+
+        // 交互状态标记
+        let isInteracting = false;
+
+        const imgEl = document.getElementById('target-image');
+        const statusEl = document.getElementById('status-bar');
+        const c1 = document.getElementById('cursor1');
+        const c2 = document.getElementById('cursor2');
+
+        async function connectHandler() {
+            try {
+                if (!navigator.hid) throw new Error("浏览器不支持 WebHID");
+                const devices = await navigator.hid.requestDevice({
+                    filters: [{ vendorId: 0x054c, productId: 0x0ce6 }]
+                });
+
+                if (devices.length > 0) {
+                    device = devices[0];
+                    await device.open();
+                    device.addEventListener("inputreport", handleInput);
+                    await initDevice();
+                    statusEl.innerText = `✅ 已连接: ${device.productName}`;
+                    statusEl.style.color = "#0f0";
+                }
+            } catch (err) {
+                console.error(err);
+                alert("连接失败: " + err.message);
+            }
+        }
+
+        async function initDevice() {
+            const data = new Uint8Array(47).fill(0);
+            data[0] = 0x02; data[1] = 0xFF;
+            data[42] = 0; data[43] = 255; data[44] = 255; // LED
+            try { await device.sendReport(0x02, data); } catch (e) { }
+        }
+
+        function handleInput(event) {
+            const { data, reportId } = event;
+            if (reportId !== 0x01) return;
+
+            let offset = (data.getUint8(0) === 0x01) ? 1 : 0;
+
+            const t1 = parseTouch(data, 32 + offset);
+            const t2 = parseTouch(data, 36 + offset);
+
+            updateCursors(t1, t2);
+            processGesture(t1, t2);
+        }
+
+        function parseTouch(data, startIndex) {
+            if (data.byteLength < startIndex + 4) return null;
+            const info = data.getUint8(startIndex);
+            const isActive = !(info & 0x80);
+
+            if (!isActive) return null;
+
+            const b1 = data.getUint8(startIndex + 1);
+            const b2 = data.getUint8(startIndex + 2);
+            const b3 = data.getUint8(startIndex + 3);
+
+            const rawX = ((b2 & 0x0F) << 8) | b1;
+            const rawY = (b3 << 4) | ((b2 & 0xF0) >> 4);
+
+            return { x: rawX, y: rawY, id: info & 0x7F };
+        }
+
+        function updateCursors(t1, t2) {
+            const mapX = (x) => (x / 1920) * window.innerWidth;
+            const mapY = (y) => (y / 1080) * window.innerHeight;
+
+            if (t1) {
+                c1.style.display = 'block';
+                c1.style.left = mapX(t1.x) + 'px';
+                c1.style.top = mapY(t1.y) + 'px';
+            } else {
+                c1.style.display = 'none';
+            }
+
+            if (t2) {
+                c2.style.display = 'block';
+                c2.style.left = mapX(t2.x) + 'px';
+                c2.style.top = mapY(t2.y) + 'px';
+            } else {
+                c2.style.display = 'none';
+            }
+        }
+
+        function processGesture(t1, t2) {
+            // 双指操作中
+            if (t1 && t2) {
+                // 标记为正在交互
+                isInteracting = true;
+
+                // 交互时移除过渡动画，保证跟手性
+                imgEl.style.transition = 'none';
+
+                const currDist = Math.hypot(t2.x - t1.x, t2.y - t1.y);
+                const currCenterX = (t1.x + t2.x) / 2;
+                const currCenterY = (t1.y + t2.y) / 2;
+
+                if (prevTouchState.t1 && prevTouchState.t2) {
+                    // --- 缩放 ---
+                    if (prevTouchState.dist > 0) {
+                        const zoomFactor = currDist / prevTouchState.dist;
+                        transform.scale *= zoomFactor;
+                        // 限制缩放范围
+                        transform.scale = Math.max(0.5, Math.min(transform.scale, 4.0));
+                    }
+
+                    // --- 拖拽 (如果需要完全固定图片位置不让动，可注释下面两行) ---
+                    // 这里保留了拖拽，但因为 transform-origin 是 center，所以缩放本身不会导致位移
+                    const deltaX = (currCenterX - prevTouchState.centerX) * 1.5;
+                    const deltaY = (currCenterY - prevTouchState.centerY) * 1.5;
+                    transform.x += deltaX;
+                    transform.y += deltaY;
+                }
+
+                prevTouchState.dist = currDist;
+                prevTouchState.centerX = currCenterX;
+                prevTouchState.centerY = currCenterY;
+
+                statusEl.innerText = `🔍 缩放中... 倍率: ${transform.scale.toFixed(2)}`;
+
+                // 应用变换
+                applyTransform();
+
+            } else {
+                // 手指数量不足2个（松开）
+                if (isInteracting) {
+                    // 刚刚松开双指 -> 触发回弹
+                    isInteracting = false;
+                    resetImage();
+                    statusEl.innerText = "↩️ 已复位";
+                } else {
+                    // 闲置状态
+                    prevTouchState.dist = 0;
+                }
+            }
+
+            prevTouchState.t1 = t1;
+            prevTouchState.t2 = t2;
+        }
+
+        function applyTransform() {
+            requestAnimationFrame(() => {
+                imgEl.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
+            });
+        }
+
+        // 复位函数：带动画回归原始状态
+        function resetImage() {
+            // 启用弹性动画
+            imgEl.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+
+            // 重置数据
+            transform = { scale: 1, x: 0, y: 0 };
+
+            // 应用重置
+            requestAnimationFrame(() => {
+                imgEl.style.transform = `translate(0px, 0px) scale(1)`;
+            });
+        }
+
+    </script>
+</body>
+
+</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>PS5 触控板图片缩放演示</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* 顶部状态栏 */
+        #header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+            backdrop-filter: blur(5px);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #00ffcc;
+        }
+
+        #status-bar {
+            font-family: monospace;
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        button {
+            padding: 8px 20px;
+            background: #0088cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #00aaff;
+        }
+
+        /* 图片容器 */
+        #viewport {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background-image: radial-gradient(circle, #222 1px, transparent 1px);
+            background-size: 30px 30px;
+            /* 网格背景 */
+            position: relative;
+        }
+
+        /* 图片本身 */
+        #target-image {
+            max-width: 80%;
+            max-height: 80%;
+            /* 关键：设置变换原点为中心，确保缩放时以中心为基准 */
+            transform-origin: center center;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            /* 默认无过渡，JS控制动态过渡 */
+            transition: none;
+            will-change: transform;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        /* 触控光标 (调试用) */
+        .cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: none;
+            z-index: 200;
+        }
+
+        #cursor1 {
+            background: rgba(0, 255, 204, 0.5);
+            box-shadow: 0 0 10px #00ffcc;
+        }
+
+        #cursor2 {
+            background: rgba(255, 0, 100, 0.5);
+            box-shadow: 0 0 10px #ff0064;
+        }
+
+        /* 操作提示 */
+        #guide {
+            position: absolute;
+            bottom: 30px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #ccc;
+            pointer-events: none;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="header">
+        <h1>PS5 Touch Gallery</h1>
+        <div id="status-bar">等待连接... (请使用 USB)</div>
+        <button onclick="connectHandler()">⚡ 连接手柄</button>
+    </div>
+
+    <!-- 视口 -->
+    <div id="viewport">
+        <!-- 你的图片，添加了 onerror 以防图片加载失败 -->
+        <img id="target-image" src="recraftv3.webp" alt="Preview Image"
+            onerror="this.onerror=null; this.src='https://placehold.co/800x600/222/999?text=Image+Not+Found';">
+    </div>
+
+    <!-- 触控点光标 (显示手指位置) -->
+    <div id="cursor1" class="cursor"></div>
+    <div id="cursor2" class="cursor"></div>
+
+    <div id="guide">
+        ✌️ <b>双指捏合</b> 缩放图片 (中心固定)<br>
+        👋 <b>松开双手</b> 自动恢复原始大小
+    </div>
+
+    <script>
+        let device;
+
+        // 变换状态
+        let transform = {
+            scale: 1,
+            x: 0,
+            y: 0
+        };
+
+        // 上一帧的触控数据
+        let prevTouchState = {
+            t1: null,
+            t2: null,
+            dist: 0,
+            centerX: 0,
+            centerY: 0
+        };
+
+        // 交互状态标记
+        let isInteracting = false;
+
+        const imgEl = document.getElementById('target-image');
+        const statusEl = document.getElementById('status-bar');
+        const c1 = document.getElementById('cursor1');
+        const c2 = document.getElementById('cursor2');
+
+        async function connectHandler() {
+            try {
+                if (!navigator.hid) throw new Error("浏览器不支持 WebHID");
+                const devices = await navigator.hid.requestDevice({
+                    filters: [{ vendorId: 0x054c, productId: 0x0ce6 }]
+                });
+
+                if (devices.length > 0) {
+                    device = devices[0];
+                    await device.open();
+                    device.addEventListener("inputreport", handleInput);
+                    await initDevice();
+                    statusEl.innerText = `✅ 已连接: ${device.productName}`;
+                    statusEl.style.color = "#0f0";
+                }
+            } catch (err) {
+                console.error(err);
+                alert("连接失败: " + err.message);
+            }
+        }
+
+        async function initDevice() {
+            const data = new Uint8Array(47).fill(0);
+            data[0] = 0x02; data[1] = 0xFF;
+            data[42] = 0; data[43] = 255; data[44] = 255; // LED
+            try { await device.sendReport(0x02, data); } catch (e) { }
+        }
+
+        function handleInput(event) {
+            const { data, reportId } = event;
+            if (reportId !== 0x01) return;
+
+            let offset = (data.getUint8(0) === 0x01) ? 1 : 0;
+
+            const t1 = parseTouch(data, 32 + offset);
+            const t2 = parseTouch(data, 36 + offset);
+
+            updateCursors(t1, t2);
+            processGesture(t1, t2);
+        }
+
+        function parseTouch(data, startIndex) {
+            if (data.byteLength < startIndex + 4) return null;
+            const info = data.getUint8(startIndex);
+            const isActive = !(info & 0x80);
+
+            if (!isActive) return null;
+
+            const b1 = data.getUint8(startIndex + 1);
+            const b2 = data.getUint8(startIndex + 2);
+            const b3 = data.getUint8(startIndex + 3);
+
+            const rawX = ((b2 & 0x0F) << 8) | b1;
+            const rawY = (b3 << 4) | ((b2 & 0xF0) >> 4);
+
+            return { x: rawX, y: rawY, id: info & 0x7F };
+        }
+
+        function updateCursors(t1, t2) {
+            const mapX = (x) => (x / 1920) * window.innerWidth;
+            const mapY = (y) => (y / 1080) * window.innerHeight;
+
+            if (t1) {
+                c1.style.display = 'block';
+                c1.style.left = mapX(t1.x) + 'px';
+                c1.style.top = mapY(t1.y) + 'px';
+            } else {
+                c1.style.display = 'none';
+            }
+
+            if (t2) {
+                c2.style.display = 'block';
+                c2.style.left = mapX(t2.x) + 'px';
+                c2.style.top = mapY(t2.y) + 'px';
+            } else {
+                c2.style.display = 'none';
+            }
+        }
+
+        function processGesture(t1, t2) {
+            // 双指操作中
+            if (t1 && t2) {
+                // 标记为正在交互
+                isInteracting = true;
+
+                // 交互时移除过渡动画，保证跟手性
+                imgEl.style.transition = 'none';
+
+                const currDist = Math.hypot(t2.x - t1.x, t2.y - t1.y);
+                const currCenterX = (t1.x + t2.x) / 2;
+                const currCenterY = (t1.y + t2.y) / 2;
+
+                if (prevTouchState.t1 && prevTouchState.t2) {
+                    // --- 缩放 ---
+                    if (prevTouchState.dist > 0) {
+                        const zoomFactor = currDist / prevTouchState.dist;
+                        transform.scale *= zoomFactor;
+                        // 限制缩放范围
+                        transform.scale = Math.max(0.5, Math.min(transform.scale, 4.0));
+                    }
+
+                    // --- 拖拽 (如果需要完全固定图片位置不让动，可注释下面两行) ---
+                    // 这里保留了拖拽，但因为 transform-origin 是 center，所以缩放本身不会导致位移
+                    const deltaX = (currCenterX - prevTouchState.centerX) * 1.5;
+                    const deltaY = (currCenterY - prevTouchState.centerY) * 1.5;
+                    transform.x += deltaX;
+                    transform.y += deltaY;
+                }
+
+                prevTouchState.dist = currDist;
+                prevTouchState.centerX = currCenterX;
+                prevTouchState.centerY = currCenterY;
+
+                statusEl.innerText = `🔍 缩放中... 倍率: ${transform.scale.toFixed(2)}`;
+
+                // 应用变换
+                applyTransform();
+
+            } else {
+                // 手指数量不足2个（松开）
+                if (isInteracting) {
+                    // 刚刚松开双指 -> 触发回弹
+                    isInteracting = false;
+                    resetImage();
+                    statusEl.innerText = "↩️ 已复位";
+                } else {
+                    // 闲置状态
+                    prevTouchState.dist = 0;
+                }
+            }
+
+            prevTouchState.t1 = t1;
+            prevTouchState.t2 = t2;
+        }
+
+        function applyTransform() {
+            requestAnimationFrame(() => {
+                imgEl.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
+            });
+        }
+
+        // 复位函数：带动画回归原始状态
+        function resetImage() {
+            // 启用弹性动画
+            imgEl.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+
+            // 重置数据
+            transform = { scale: 1, x: 0, y: 0 };
+
+            // 应用重置
+            requestAnimationFrame(() => {
+                imgEl.style.transform = `translate(0px, 0px) scale(1)`;
+            });
+        }
+
+    </script>
+</body>
+
+</html>

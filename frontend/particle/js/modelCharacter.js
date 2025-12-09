@@ -48,7 +48,7 @@ const LANDMARKS = {
  * 圣诞树高度常量（用于计算模型目标高度）
  */
 const TREE_HEIGHT = 3.6;
-const TARGET_MODEL_HEIGHT = TREE_HEIGHT * 0.5; // 模型高度为圣诞树的一半
+const TARGET_MODEL_HEIGHT = TREE_HEIGHT * 0.25; // 模型高度为圣诞树的1/4
 
 /**
  * 水平移动比例系数 - 放大人物在虚拟空间中的移动距离
@@ -65,24 +65,24 @@ const BONE_ALIASES = {
     'chest': 'chest', 'upperchest': 'chest',
     'neck': 'neck',
     'head': 'head',
-    
+
     // 左臂
     'leftshoulder': 'leftShoulder', 'shoulderl': 'leftShoulder', 'lshoulder': 'leftShoulder',
     'leftarm': 'leftUpperArm', 'leftupperarm': 'leftUpperArm', 'upperarml': 'leftUpperArm', 'lupperarm': 'leftUpperArm',
     'leftforearm': 'leftForeArm', 'forearml': 'leftForeArm', 'lforearm': 'leftForeArm',
     'lefthand': 'leftHand', 'handl': 'leftHand', 'lhand': 'leftHand',
-    
+
     // 右臂
     'rightshoulder': 'rightShoulder', 'shoulderr': 'rightShoulder', 'rshoulder': 'rightShoulder',
     'rightarm': 'rightUpperArm', 'rightupperarm': 'rightUpperArm', 'upperarmr': 'rightUpperArm', 'rupperarm': 'rightUpperArm',
     'rightforearm': 'rightForeArm', 'forearmr': 'rightForeArm', 'rforearm': 'rightForeArm',
     'righthand': 'rightHand', 'handr': 'rightHand', 'rhand': 'rightHand',
-    
+
     // 左腿
     'leftupleg': 'leftUpLeg', 'leftthigh': 'leftUpLeg', 'thighl': 'leftUpLeg', 'lthigh': 'leftUpLeg',
     'leftleg': 'leftLeg', 'leftshin': 'leftLeg', 'shinl': 'leftLeg', 'lshin': 'leftLeg', 'leftlowleg': 'leftLeg',
     'leftfoot': 'leftFoot', 'footl': 'leftFoot', 'lfoot': 'leftFoot',
-    
+
     // 右腿
     'rightupleg': 'rightUpLeg', 'rightthigh': 'rightUpLeg', 'thighr': 'rightUpLeg', 'rthigh': 'rightUpLeg',
     'rightleg': 'rightLeg', 'rightshin': 'rightLeg', 'shinr': 'rightLeg', 'rshin': 'rightLeg', 'rightlowleg': 'rightLeg',
@@ -131,9 +131,15 @@ export class ModelCharacter {
         this.modelCache = {};
         this.skeletonCache = {};
         this.loader = new GLTFLoader();
-        
+
         // 跟踪正在加载的模型，防止重复加载
         this.loadingPromises = {};
+
+        // 跳跃状态
+        this.isJumping = false;
+        this.jumpHeight = 0;
+        this.jumpVelocity = 0;
+        this.gravity = 0.015;
 
         this.scene.add(this.group);
     }
@@ -144,7 +150,7 @@ export class ModelCharacter {
     _activateModel(modelId) {
         // 隐藏所有缓存的模型
         Object.values(this.modelCache).forEach(m => m.visible = false);
-        
+
         this.model = this.modelCache[modelId];
         this.model.visible = this.visible;
         this.bones = this.skeletonCache[modelId]?.bones || {};
@@ -195,7 +201,7 @@ export class ModelCharacter {
 
         // 创建加载 Promise 并缓存
         this.loadingPromises[modelId] = this._loadModelAsync(modelId, modelInfo);
-        
+
         try {
             await this.loadingPromises[modelId];
         } finally {
@@ -211,8 +217,8 @@ export class ModelCharacter {
         try {
             const gltf = await new Promise((resolve, reject) => {
                 this.loader.load(
-                    modelInfo.path, 
-                    resolve, 
+                    modelInfo.path,
+                    resolve,
                     (progress) => {
                         if (progress.total > 0) {
                             console.log(`Loading ${modelId}: ${(progress.loaded / progress.total * 100).toFixed(1)}%`);
@@ -242,7 +248,7 @@ export class ModelCharacter {
             this.hasSkeleton = false;
             this.restPose = {};
             this.findAndMapBones(newModel);
-            
+
             // 调整特定模型的材质亮度
             this.adjustModelMaterials(newModel, modelId);
 
@@ -255,7 +261,7 @@ export class ModelCharacter {
                 hasSkeleton: this.hasSkeleton,
                 restPose: { ...this.restPose }
             };
-            
+
             // 激活模型
             this._activateModel(modelId);
 
@@ -277,7 +283,7 @@ export class ModelCharacter {
 
         // Define materials based on modelId
         let bodyMat, limbMat, jointMat, headMat, hatMat, bootMat;
-        
+
         if (modelId === 'santa') {
             bodyMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.8 }); // Red suit
             limbMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.8 }); // Red suit
@@ -308,7 +314,7 @@ export class ModelCharacter {
             boneGroup.name = name;
             if (pos) boneGroup.position.copy(pos);
             if (rot) boneGroup.rotation.setFromVector3(rot);
-            
+
             if (parent) parent.add(boneGroup);
             else group.add(boneGroup);
 
@@ -324,9 +330,9 @@ export class ModelCharacter {
                 } else if (modelId === 'santa' && name === 'spine') {
                     geometry = new THREE.CylinderGeometry(size.x * 0.6, size.x * 0.5, size.y, 16);
                 } else {
-                    geometry = new THREE.CylinderGeometry(size.x/2, size.x/2, size.y, 8);
+                    geometry = new THREE.CylinderGeometry(size.x / 2, size.x / 2, size.y, 8);
                 }
-                
+
                 // Adjust geometry center so pivot is at one end if needed
                 // For limbs, we usually want pivot at top
                 if (name.includes('Arm') || name.includes('Leg')) {
@@ -360,7 +366,7 @@ export class ModelCharacter {
                     hatGeo.rotateX(-0.2);
                     const hat = new THREE.Mesh(hatGeo, hatMat);
                     boneGroup.add(hat);
-                    
+
                     // Pom-pom for Santa
                     if (modelId === 'santa') {
                         const pomGeo = new THREE.SphereGeometry(size.x * 0.2);
@@ -382,13 +388,13 @@ export class ModelCharacter {
 
         // Build Hierarchy
         // Hips (Root)
-        const hips = createBone('hips', null, {x: 0.3, y: 0.15, z: 0.2}, new THREE.Vector3(0, 1.0, 0));
+        const hips = createBone('hips', null, { x: 0.3, y: 0.15, z: 0.2 }, new THREE.Vector3(0, 1.0, 0));
 
         // Spine Chain
-        const spine = createBone('spine', hips, {x: 0.25, y: 0.2, z: 0.15}, new THREE.Vector3(0, 0.1, 0));
-        const chest = createBone('chest', spine, {x: 0.35, y: 0.25, z: 0.2}, new THREE.Vector3(0, 0.2, 0));
-        const neck = createBone('neck', chest, {x: 0.1, y: 0.1, z: 0.1}, new THREE.Vector3(0, 0.25, 0));
-        const head = createBone('head', neck, {x: 0.2, y: 0.25, z: 0.22}, new THREE.Vector3(0, 0.1, 0));
+        const spine = createBone('spine', hips, { x: 0.25, y: 0.2, z: 0.15 }, new THREE.Vector3(0, 0.1, 0));
+        const chest = createBone('chest', spine, { x: 0.35, y: 0.25, z: 0.2 }, new THREE.Vector3(0, 0.2, 0));
+        const neck = createBone('neck', chest, { x: 0.1, y: 0.1, z: 0.1 }, new THREE.Vector3(0, 0.25, 0));
+        const head = createBone('head', neck, { x: 0.2, y: 0.25, z: 0.22 }, new THREE.Vector3(0, 0.1, 0));
 
         // Arms
         const shoulderWidth = 0.2;
@@ -397,51 +403,51 @@ export class ModelCharacter {
 
         // Left Arm
         const lShoulder = createBone('leftShoulder', chest, null, new THREE.Vector3(-shoulderWidth, 0.2, 0));
-        
-        const lArmGroup = createBone('leftUpperArm', lShoulder, {x: armThick, y: armLength, z: armThick}, new THREE.Vector3(0, 0, 0));
+
+        const lArmGroup = createBone('leftUpperArm', lShoulder, { x: armThick, y: armLength, z: armThick }, new THREE.Vector3(0, 0, 0));
         lArmGroup.rotation.z = -Math.PI / 2; // Point Left (-X)
         this.restPose['leftUpperArm'].quaternion.copy(lArmGroup.quaternion);
 
-        const lForeArm = createBone('leftForeArm', lArmGroup, {x: armThick*0.8, y: armLength, z: armThick*0.8}, new THREE.Vector3(0, -armLength, 0));
-        
+        const lForeArm = createBone('leftForeArm', lArmGroup, { x: armThick * 0.8, y: armLength, z: armThick * 0.8 }, new THREE.Vector3(0, -armLength, 0));
+
         // Right Arm
         const rShoulder = createBone('rightShoulder', chest, null, new THREE.Vector3(shoulderWidth, 0.2, 0));
-        const rArmGroup = createBone('rightUpperArm', rShoulder, {x: armThick, y: armLength, z: armThick}, new THREE.Vector3(0, 0, 0));
+        const rArmGroup = createBone('rightUpperArm', rShoulder, { x: armThick, y: armLength, z: armThick }, new THREE.Vector3(0, 0, 0));
         rArmGroup.rotation.z = Math.PI / 2; // Point Right (+X)
         this.restPose['rightUpperArm'].quaternion.copy(rArmGroup.quaternion);
 
-        const rForeArm = createBone('rightForeArm', rArmGroup, {x: armThick*0.8, y: armLength, z: armThick*0.8}, new THREE.Vector3(0, -armLength, 0));
+        const rForeArm = createBone('rightForeArm', rArmGroup, { x: armThick * 0.8, y: armLength, z: armThick * 0.8 }, new THREE.Vector3(0, -armLength, 0));
 
         // Hands
-        createBone('leftHand', lForeArm, {x: 0.08, y: 0.1, z: 0.1}, new THREE.Vector3(0, -armLength, 0));
-        createBone('rightHand', rForeArm, {x: 0.08, y: 0.1, z: 0.1}, new THREE.Vector3(0, -armLength, 0));
+        createBone('leftHand', lForeArm, { x: 0.08, y: 0.1, z: 0.1 }, new THREE.Vector3(0, -armLength, 0));
+        createBone('rightHand', rForeArm, { x: 0.08, y: 0.1, z: 0.1 }, new THREE.Vector3(0, -armLength, 0));
 
         // Legs
         const hipWidth = 0.1;
         const legLength = 0.45;
         const legThick = 0.12;
 
-        const lUpLeg = createBone('leftUpLeg', hips, {x: legThick, y: legLength, z: legThick}, new THREE.Vector3(-hipWidth, 0, 0));
+        const lUpLeg = createBone('leftUpLeg', hips, { x: legThick, y: legLength, z: legThick }, new THREE.Vector3(-hipWidth, 0, 0));
         // Legs point down (-Y). Geometry is vertical. No rotation needed.
-        
-        const lLeg = createBone('leftLeg', lUpLeg, {x: legThick*0.8, y: legLength, z: legThick*0.8}, new THREE.Vector3(0, -legLength, 0));
-        createBone('leftFoot', lLeg, {x: 0.1, y: 0.05, z: 0.2}, new THREE.Vector3(0, -legLength, 0));
+
+        const lLeg = createBone('leftLeg', lUpLeg, { x: legThick * 0.8, y: legLength, z: legThick * 0.8 }, new THREE.Vector3(0, -legLength, 0));
+        createBone('leftFoot', lLeg, { x: 0.1, y: 0.05, z: 0.2 }, new THREE.Vector3(0, -legLength, 0));
         // Foot geometry needs to point forward (Z).
         // Our generic box is centered.
         // Let's adjust foot geometry manually if needed or just accept box.
 
-        const rUpLeg = createBone('rightUpLeg', hips, {x: legThick, y: legLength, z: legThick}, new THREE.Vector3(hipWidth, 0, 0));
-        const rLeg = createBone('rightLeg', rUpLeg, {x: legThick*0.8, y: legLength, z: legThick*0.8}, new THREE.Vector3(0, -legLength, 0));
-        createBone('rightFoot', rLeg, {x: 0.1, y: 0.05, z: 0.2}, new THREE.Vector3(0, -legLength, 0));
+        const rUpLeg = createBone('rightUpLeg', hips, { x: legThick, y: legLength, z: legThick }, new THREE.Vector3(hipWidth, 0, 0));
+        const rLeg = createBone('rightLeg', rUpLeg, { x: legThick * 0.8, y: legLength, z: legThick * 0.8 }, new THREE.Vector3(0, -legLength, 0));
+        createBone('rightFoot', rLeg, { x: 0.1, y: 0.05, z: 0.2 }, new THREE.Vector3(0, -legLength, 0));
 
         // Scale to match target height
         const box = new THREE.Box3().setFromObject(group);
         const size = box.getSize(new THREE.Vector3());
-        
+
         // Goblin is smaller
         let targetHeight = TARGET_MODEL_HEIGHT;
         if (modelId === 'goblin') targetHeight *= 0.7;
-        
+
         const scale = targetHeight / size.y;
         group.scale.setScalar(scale);
 
@@ -467,7 +473,7 @@ export class ModelCharacter {
             if (object.isSkinnedMesh && object.skeleton) {
                 this.skeleton = object.skeleton;
                 this.hasSkeleton = true;
-                
+
                 object.skeleton.bones.forEach((bone) => {
                     this.mapBone(bone);
                 });
@@ -485,7 +491,7 @@ export class ModelCharacter {
      */
     mapBone(bone) {
         const name = bone.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        
+
         // 检查别名
         for (const [alias, standard] of Object.entries(BONE_ALIASES)) {
             if (name.includes(alias) || alias.includes(name)) {
@@ -508,7 +514,7 @@ export class ModelCharacter {
         else if (name.includes('chest') || name.includes('torso')) standardName = 'chest';
         else if (name.includes('neck')) standardName = 'neck';
         else if (name.includes('head') && !name.includes('end')) standardName = 'head';
-        
+
         // 手臂
         else if (name.includes('shoulder') && (name.includes('l') || name.includes('left'))) standardName = 'leftShoulder';
         else if (name.includes('shoulder') && (name.includes('r') || name.includes('right'))) standardName = 'rightShoulder';
@@ -518,7 +524,7 @@ export class ModelCharacter {
         else if (name.includes('fore') && (name.includes('r') || name.includes('right'))) standardName = 'rightForeArm';
         else if (name.includes('hand') && (name.includes('l') || name.includes('left'))) standardName = 'leftHand';
         else if (name.includes('hand') && (name.includes('r') || name.includes('right'))) standardName = 'rightHand';
-        
+
         // 腿
         else if ((name.includes('thigh') || name.includes('upleg')) && (name.includes('l') || name.includes('left'))) standardName = 'leftUpLeg';
         else if ((name.includes('thigh') || name.includes('upleg')) && (name.includes('r') || name.includes('right'))) standardName = 'rightUpLeg';
@@ -543,21 +549,21 @@ export class ModelCharacter {
     adjustModelMaterials(model, modelId) {
         // 只针对 gingy_the_gingebread_man 文件夹下的模型（id 为 'gingy'）
         const isGingyModel = modelId === 'gingy';
-        
+
         if (isGingyModel) {
             console.log(`Adjusting brightness for Gingy model: ${modelId}`);
-            
+
             model.traverse((object) => {
                 if (object.isMesh && object.material) {
                     const materials = Array.isArray(object.material) ? object.material : [object.material];
-                    
+
                     materials.forEach(mat => {
                         // 降低自发光
                         if (mat.emissive) {
                             mat.emissive.setRGB(0, 0, 0);
                         }
                         mat.emissiveIntensity = 0;
-                        
+
                         // 降低材质亮度 - 调暗颜色
                         if (mat.color) {
                             // 将颜色亮度降低到原来的60%
@@ -565,7 +571,7 @@ export class ModelCharacter {
                             mat.color.getHSL(hsl);
                             mat.color.setHSL(hsl.h, hsl.s, Math.min(hsl.l * 0.6, 0.5));
                         }
-                        
+
                         // 调整金属度和粗糙度使其更柔和
                         if (mat.metalness !== undefined) {
                             mat.metalness = Math.min(mat.metalness, 0.2);
@@ -573,7 +579,7 @@ export class ModelCharacter {
                         if (mat.roughness !== undefined) {
                             mat.roughness = Math.max(mat.roughness, 0.6);
                         }
-                        
+
                         // 确保材质更新
                         mat.needsUpdate = true;
                     });
@@ -652,9 +658,10 @@ export class ModelCharacter {
         const bodyCenter = new THREE.Vector3().addVectors(hipCenter, shoulderCenter).multiplyScalar(0.5);
 
         // 应用水平移动比例系数，放大X和Z方向的移动距离
+        // Y轴固定在地面（0），除非正在跳跃
         const scaledPosition = new THREE.Vector3(
             bodyCenter.x * HORIZONTAL_MOVEMENT_SCALE,
-            bodyCenter.y,  // Y轴（垂直）保持不变
+            0,  // 固定在地面
             bodyCenter.z * HORIZONTAL_MOVEMENT_SCALE
         );
 
@@ -665,8 +672,28 @@ export class ModelCharacter {
         const forward = new THREE.Vector3(-shoulderDir.z, 0, shoulderDir.x).normalize();
         const targetRotY = Math.atan2(forward.x, forward.z);
 
-        // 平滑位置
-        this.group.position.lerp(this.targetPosition, this.smoothing);
+        // 平滑位置（X和Z）
+        this.group.position.x = THREE.MathUtils.lerp(this.group.position.x, this.targetPosition.x, this.smoothing);
+        this.group.position.z = THREE.MathUtils.lerp(this.group.position.z, this.targetPosition.z, this.smoothing);
+
+        // Y轴处理：地面或跳跃
+        if (this.isJumping) {
+            // 跳跃物理
+            this.jumpVelocity -= this.gravity;
+            this.jumpHeight += this.jumpVelocity;
+
+            // 落地检测
+            if (this.jumpHeight <= 0) {
+                this.jumpHeight = 0;
+                this.jumpVelocity = 0;
+                this.isJumping = false;
+            }
+
+            this.group.position.y = this.jumpHeight;
+        } else {
+            // 保持在地面
+            this.group.position.y = 0;
+        }
 
         // 平滑旋转
         let rotDiff = targetRotY - this.previousRotation;
@@ -677,19 +704,30 @@ export class ModelCharacter {
     }
 
     /**
+     * 触发跳跃
+     */
+    triggerJump() {
+        if (!this.isJumping) {
+            this.isJumping = true;
+            this.jumpVelocity = 0.25; // 初始跳跃速度
+            this.jumpHeight = 0;
+        }
+    }
+
+    /**
      * 更新骨骼动画
      */
     updateSkeleton(landmarks) {
         // 更新脊柱/躯干
         this.updateSpine(landmarks);
-        
+
         // 更新头部
         this.updateHead(landmarks);
-        
+
         // 更新手臂
         this.updateArm(landmarks, 'left');
         this.updateArm(landmarks, 'right');
-        
+
         // 更新腿部
         this.updateLeg(landmarks, 'left');
         this.updateLeg(landmarks, 'right');
@@ -711,7 +749,7 @@ export class ModelCharacter {
 
         // 脊柱方向
         const spineDir = new THREE.Vector3().subVectors(shoulderCenter, hipCenter).normalize();
-        
+
         // 计算倾斜角度
         const tiltX = Math.asin(spineDir.z) * 0.5;
         const tiltZ = -Math.asin(spineDir.x) * 0.5;
@@ -780,7 +818,7 @@ export class ModelCharacter {
         // 上臂方向
         const upperArmDir = new THREE.Vector3().subVectors(elbow, shoulder).normalize();
         const upperArmBone = this.bones[isLeft ? 'leftUpperArm' : 'rightUpperArm'];
-        
+
         if (upperArmBone) {
             // 计算从默认方向到目标方向的旋转
             const defaultDir = isLeft ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(1, 0, 0);
@@ -791,7 +829,7 @@ export class ModelCharacter {
         // 前臂方向
         const foreArmDir = new THREE.Vector3().subVectors(wrist, elbow).normalize();
         const foreArmBone = this.bones[isLeft ? 'leftForeArm' : 'rightForeArm'];
-        
+
         if (foreArmBone) {
             const defaultDir = isLeft ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(1, 0, 0);
             const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, foreArmDir);
@@ -802,7 +840,7 @@ export class ModelCharacter {
         if (indexFinger) {
             const handDir = new THREE.Vector3().subVectors(indexFinger, wrist).normalize();
             const handBone = this.bones[isLeft ? 'leftHand' : 'rightHand'];
-            
+
             if (handBone) {
                 const defaultDir = isLeft ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(1, 0, 0);
                 const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, handDir);
@@ -831,7 +869,7 @@ export class ModelCharacter {
         // 大腿方向
         const upLegDir = new THREE.Vector3().subVectors(knee, hip).normalize();
         const upLegBone = this.bones[isLeft ? 'leftUpLeg' : 'rightUpLeg'];
-        
+
         if (upLegBone) {
             const defaultDir = new THREE.Vector3(0, -1, 0);
             const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, upLegDir);
@@ -841,7 +879,7 @@ export class ModelCharacter {
         // 小腿方向
         const legDir = new THREE.Vector3().subVectors(ankle, knee).normalize();
         const legBone = this.bones[isLeft ? 'leftLeg' : 'rightLeg'];
-        
+
         if (legBone) {
             const defaultDir = new THREE.Vector3(0, -1, 0);
             const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, legDir);
@@ -852,7 +890,7 @@ export class ModelCharacter {
         if (foot) {
             const footDir = new THREE.Vector3().subVectors(foot, ankle).normalize();
             const footBone = this.bones[isLeft ? 'leftFoot' : 'rightFoot'];
-            
+
             if (footBone) {
                 // 假设脚部骨骼默认指向前方 (0, 0, 1)
                 // 注意：这取决于模型的初始姿态，有些模型脚部可能指向 (0, -1, 0)

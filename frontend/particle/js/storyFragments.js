@@ -6,13 +6,13 @@ import * as THREE from 'three';
 function createFourPointStarGeometry(innerRadius = 0.06, outerRadius = 0.18) {
     const shape = new THREE.Shape();
     const points = 4;
-    
+
     for (let i = 0; i < points * 2; i++) {
         const angle = (i * Math.PI) / points - Math.PI / 2;
         const radius = i % 2 === 0 ? outerRadius : innerRadius;
         const x = Math.cos(angle) * radius;
         const y = Math.sin(angle) * radius;
-        
+
         if (i === 0) {
             shape.moveTo(x, y);
         } else {
@@ -20,7 +20,7 @@ function createFourPointStarGeometry(innerRadius = 0.06, outerRadius = 0.18) {
         }
     }
     shape.closePath();
-    
+
     return new THREE.ShapeGeometry(shape);
 }
 
@@ -36,71 +36,71 @@ export class StoryFragments {
         this.stories = [];
         this.group = new THREE.Group();
         this.scene.add(this.group);
-        
+
         // 轨道参数
         this.orbitRadius = 1.0; // 靠近圣诞树
         this.orbitHeight = 1.5;
         this.orbitSpeed = 0.15; // 缓慢移动
-        
+
         // 当前选中索引
         this.currentIndex = 0;
         this.targetIndex = 0;
         this.slideProgress = 0;
         this.isSliding = false;
         this.slideDirection = 0; // -1左 1右
-        
+
         // 展开状态
         this.isExpanded = false;
         this.expandedStory = null;
-        
+
         // 故事颜色配色（排除白色）
-        
+
         this.storyColors = [
-    new THREE.Color(0xffd700),   // 耀眼金 - 传统圣诞奢华
-    new THREE.Color(0xe63946),   // 深红宝石 - 圣诞经典
-    new THREE.Color(0x1d3557),   // 午夜蓝 - 星空深邃
-    new THREE.Color(0xa8dadc),   // 冰晶蓝 - 冬日清新
-    new THREE.Color(0xff9e6d),   // 暖阳橙 - 火炉温暖
-    new THREE.Color(0x9d4edd),   // 皇家紫 - 神秘魔力
-    new THREE.Color(0x06d6a0),   // 青翡翠 - 新生希望
-    
-    // 新增绚丽配色
-    new THREE.Color(0xd43f8d),   // 玫瑰金粉 - 优雅浪漫
-    new THREE.Color(0xc70039),   // 圣诞浆果红 - 传统喜庆
-    new THREE.Color(0x4cc9f0),   // 极光蓝 - 冰雪奇幻
-    new THREE.Color(0xf9c74f),   // 香槟金 - 奢华闪亮
-    new THREE.Color(0x7209b7),   // 深紫罗兰 - 神秘深邃
-    new THREE.Color(0x3a0ca3),   // 宝石紫 - 高贵典雅
-    new THREE.Color(0x4895ef),   // 冰湖蓝 - 清澈宁静
-    new THREE.Color(0xf72585),   // 樱花粉 - 温暖甜美
-    new THREE.Color(0x00f5d4),   // 水蓝绿 - 清新活力
-    new THREE.Color(0x9e0059),   // 梅子红 - 深邃情感
-    new THREE.Color(0xffba08),   // 太阳黄 - 温暖希望
-    new THREE.Color(0x02c39a),   // 松石绿 - 和平生机
-    new THREE.Color(0x3f37c9),   // 深空蓝 - 宇宙奥秘
-    new THREE.Color(0xe63996),   // 暮光粉 - 梦幻温柔
-    new THREE.Color(0x00bbf9),   // 天空蓝 - 自由开阔
-    new THREE.Color(0xf15bb5),   // 梦幻粉 - 童话气息
-    new THREE.Color(0x00f5a8),   // 荧光绿 - 活力生机
-    new THREE.Color(0xae2012),   // 深酒红 - 沉稳经典
-];
-        
+            new THREE.Color(0xffd700),   // 耀眼金 - 传统圣诞奢华
+            new THREE.Color(0xe63946),   // 深红宝石 - 圣诞经典
+            new THREE.Color(0x1d3557),   // 午夜蓝 - 星空深邃
+            new THREE.Color(0xa8dadc),   // 冰晶蓝 - 冬日清新
+            new THREE.Color(0xff9e6d),   // 暖阳橙 - 火炉温暖
+            new THREE.Color(0x9d4edd),   // 皇家紫 - 神秘魔力
+            new THREE.Color(0x06d6a0),   // 青翡翠 - 新生希望
+
+            // 新增绚丽配色
+            new THREE.Color(0xd43f8d),   // 玫瑰金粉 - 优雅浪漫
+            new THREE.Color(0xc70039),   // 圣诞浆果红 - 传统喜庆
+            new THREE.Color(0x4cc9f0),   // 极光蓝 - 冰雪奇幻
+            new THREE.Color(0xf9c74f),   // 香槟金 - 奢华闪亮
+            new THREE.Color(0x7209b7),   // 深紫罗兰 - 神秘深邃
+            new THREE.Color(0x3a0ca3),   // 宝石紫 - 高贵典雅
+            new THREE.Color(0x4895ef),   // 冰湖蓝 - 清澈宁静
+            new THREE.Color(0xf72585),   // 樱花粉 - 温暖甜美
+            new THREE.Color(0x00f5d4),   // 水蓝绿 - 清新活力
+            new THREE.Color(0x9e0059),   // 梅子红 - 深邃情感
+            new THREE.Color(0xffba08),   // 太阳黄 - 温暖希望
+            new THREE.Color(0x02c39a),   // 松石绿 - 和平生机
+            new THREE.Color(0x3f37c9),   // 深空蓝 - 宇宙奥秘
+            new THREE.Color(0xe63996),   // 暮光粉 - 梦幻温柔
+            new THREE.Color(0x00bbf9),   // 天空蓝 - 自由开阔
+            new THREE.Color(0xf15bb5),   // 梦幻粉 - 童话气息
+            new THREE.Color(0x00f5a8),   // 荧光绿 - 活力生机
+            new THREE.Color(0xae2012),   // 深酒红 - 沉稳经典
+        ];
+
         // 创建装饰星群
         this.createDecorativeStars();
-        
+
         // 加载故事
         this.loadStories();
     }
-    
+
     /**
      * 创建装饰性白色四芒星群
      */
     createDecorativeStars() {
         const starCount = 25;
-        
+
         for (let i = 0; i < starCount; i++) {
             const star = this.createStar(0xffffff, 0.025 + Math.random() * 0.015, true);
-            
+
             star.userData = {
                 angleOffset: Math.random() * Math.PI * 2,
                 heightOffset: (Math.random() - 0.5) * 2.5,
@@ -112,13 +112,13 @@ export class StoryFragments {
                 twinklePhase: Math.random() * Math.PI * 2,
                 rotationSpeed: 0.5 + Math.random() * 1,
             };
-            
+
             this.group.add(star.mesh);
             this.group.add(star.trail);
             this.decorStars.push(star);
         }
     }
-    
+
     /**
      * 创建单个四芒星（带尾流）
      */
@@ -132,9 +132,9 @@ export class StoryFragments {
             side: THREE.DoubleSide,
             blending: THREE.AdditiveBlending
         });
-        
+
         const mesh = new THREE.Mesh(geometry, material);
-        
+
         // 添加发光层
         const glowGeometry = createFourPointStarGeometry(size * 0.6, size * 1.6);
         const glowMaterial = new THREE.MeshBasicMaterial({
@@ -147,21 +147,21 @@ export class StoryFragments {
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
         glow.position.z = -0.001;
         mesh.add(glow);
-        
+
         // 创建粒子尾流（由粗到细）
         const trailCount = isDecor ? 20 : 50; // 增加粒子数量
         const trailGeometry = new THREE.BufferGeometry();
         const trailPositions = new Float32Array(trailCount * 3);
         const trailSizes = new Float32Array(trailCount);
-        
+
         for (let i = 0; i < trailCount; i++) {
             // 尾流大小渐变
             trailSizes[i] = size * (1 - i / trailCount) * 1.5;
         }
-        
+
         trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
         trailGeometry.setAttribute('size', new THREE.BufferAttribute(trailSizes, 1));
-        
+
         const trailMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 color: { value: new THREE.Color(color) },
@@ -195,9 +195,9 @@ export class StoryFragments {
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
-        
+
         const trail = new THREE.Points(trailGeometry, trailMaterial);
-        
+
         return {
             mesh,
             trail,
@@ -207,7 +207,7 @@ export class StoryFragments {
             size
         };
     }
-    
+
     /**
      * 从后端加载故事
      */
@@ -224,7 +224,7 @@ export class StoryFragments {
             this.stories = [];
         }
     }
-    
+
     /**
      * 添加新故事
      */
@@ -235,7 +235,7 @@ export class StoryFragments {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userText, poemText, imageUrl })
             });
-            
+
             if (response.ok) {
                 const newStory = await response.json();
                 this.stories.push(newStory);
@@ -248,7 +248,7 @@ export class StoryFragments {
         }
         return null;
     }
-    
+
     /**
      * 创建所有故事星
      */
@@ -258,19 +258,19 @@ export class StoryFragments {
             this.group.remove(star.trail);
         });
         this.storyStars = [];
-        
+
         this.stories.forEach((story, index) => {
             this.createStoryStarForStory(story, index);
         });
     }
-    
+
     /**
      * 为故事创建四芒星
      */
     createStoryStarForStory(story, index) {
         const color = this.storyColors[index % this.storyColors.length];
         const star = this.createStar(color.getHex(), 0.05, false);
-        
+
         star.userData = {
             story: story,
             index: index,
@@ -283,23 +283,23 @@ export class StoryFragments {
             twinklePhase: Math.random() * Math.PI * 2,
             rotationSpeed: 0.3 + Math.random() * 0.3,
         };
-        
+
         this.group.add(star.mesh);
         this.group.add(star.trail);
         this.storyStars.push(star);
     }
-    
+
     /**
      * 更新动画
      */
     update(deltaTime) {
         const time = Date.now() * 0.001;
-        
+
         // 更新装饰星
         this.decorStars.forEach(star => {
             this.updateStarOrbit(star, time, true, false);
         });
-        
+
         // 更新故事星
         this.storyStars.forEach((star, i) => {
             // 如果正在滑动，高亮目标索引；否则高亮当前索引
@@ -307,10 +307,10 @@ export class StoryFragments {
             const isHighlighted = i === highlightIndex && !this.isExpanded;
             this.updateStarOrbit(star, time, false, isHighlighted);
         });
-        
+
         // 更新滑动动画
         if (this.isSliding) {
-            this.slideProgress += deltaTime * 0.004;
+            this.slideProgress += deltaTime * 0.01; // Increase speed
             if (this.slideProgress >= 1) {
                 this.slideProgress = 0;
                 this.isSliding = false;
@@ -318,7 +318,7 @@ export class StoryFragments {
             }
         }
     }
-    
+
     /**
      * 更新单个星的轨道运动
      */
@@ -327,24 +327,24 @@ export class StoryFragments {
         const angle = time * data.speed + data.angleOffset;
         const radius = isDecor ? data.radiusOffset : this.orbitRadius;
         const bobOffset = Math.sin(time * data.bobSpeed + data.angleOffset) * data.bobAmount;
-        
+
         // 计算位置
         const x = this.treePosition.x + Math.cos(angle) * radius;
         const y = this.orbitHeight + data.heightOffset + bobOffset;
         const z = this.treePosition.z + Math.sin(angle) * radius;
-        
+
         star.mesh.position.set(x, y, z);
-        
+
         // 旋转四芒星
         star.mesh.rotation.z = time * data.rotationSpeed;
-        
+
         // 面向外侧
         star.mesh.lookAt(this.treePosition.x, y, this.treePosition.z);
-        
+
         // 闪烁效果
         const twinkle = 0.5 + Math.sin(time * data.twinkleSpeed + data.twinklePhase) * 0.5;
         star.mesh.material.opacity = twinkle * (isHighlighted ? 1.0 : 0.6);
-        
+
         // 高亮效果
         if (isHighlighted) {
             const pulse = 1.8 + Math.sin(time * 3) * 0.3;
@@ -352,47 +352,47 @@ export class StoryFragments {
         } else {
             star.mesh.scale.setScalar(1.0);
         }
-        
+
         // 更新尾流
         this.updateTrail(star);
     }
-    
+
     /**
      * 更新粒子尾流
      */
     updateTrail(star) {
         const positions = star.trail.geometry.attributes.position.array;
         const maxHistory = star.trailCount;
-        
+
         star.trailPositions.unshift(star.mesh.position.clone());
         if (star.trailPositions.length > maxHistory) {
             star.trailPositions.pop();
         }
-        
+
         for (let i = 0; i < maxHistory; i++) {
             const historyIndex = Math.min(i, star.trailPositions.length - 1);
             const pos = star.trailPositions[historyIndex] || star.mesh.position;
-            
+
             const spread = i * 0.003;
             positions[i * 3] = pos.x + (Math.random() - 0.5) * spread;
             positions[i * 3 + 1] = pos.y + (Math.random() - 0.5) * spread;
             positions[i * 3 + 2] = pos.z + (Math.random() - 0.5) * spread;
         }
-        
+
         star.trail.geometry.attributes.position.needsUpdate = true;
     }
-    
+
     /**
      * 向左滑动切换
      */
     slideLeft() {
         if (this.stories.length === 0) return false;
-        
+
         // 如果已经在滑动中，立即完成上一次滑动，以当前目标作为新的起点
         if (this.isSliding) {
             this.currentIndex = this.targetIndex;
         }
-        
+
         // 允许连续切换，重置进度
         this.isSliding = true;
         this.slideProgress = 0;
@@ -401,18 +401,18 @@ export class StoryFragments {
         console.log(`[StoryFragments] Sliding left to index ${this.targetIndex}`);
         return true;
     }
-    
+
     /**
      * 向右滑动切换
      */
     slideRight() {
         if (this.stories.length === 0) return false;
-        
+
         // 如果已经在滑动中，立即完成上一次滑动，以当前目标作为新的起点
         if (this.isSliding) {
             this.currentIndex = this.targetIndex;
         }
-        
+
         // 允许连续切换，重置进度
         this.isSliding = true;
         this.slideProgress = 0;
@@ -421,18 +421,18 @@ export class StoryFragments {
         console.log(`[StoryFragments] Sliding right to index ${this.targetIndex}`);
         return true;
     }
-    
+
     /**
      * 展开当前故事
      */
     expandCurrentStory() {
         if (this.stories.length === 0) return null;
-        
+
         this.isExpanded = true;
         this.expandedStory = this.stories[this.currentIndex];
         return this.expandedStory;
     }
-    
+
     /**
      * 收起故事
      */
@@ -440,7 +440,7 @@ export class StoryFragments {
         this.isExpanded = false;
         this.expandedStory = null;
     }
-    
+
     /**
      * 获取当前故事
      */
@@ -452,28 +452,66 @@ export class StoryFragments {
         }
         return this.stories[this.currentIndex];
     }
-    
+
     getStoryCount() {
         return this.stories.length;
     }
-    
+
     isStoryExpanded() {
         return this.isExpanded;
     }
-    
+
     isSlidingNow() {
         return this.isSliding;
     }
-    
+
     getCurrentIndex() {
         return this.currentIndex;
     }
-    
+
+    /**
+     * 跳转到最新故事 (最后一个)
+     */
+    goToLatestStory() {
+        if (this.stories.length === 0) return;
+        this.currentIndex = this.stories.length - 1;
+        this.targetIndex = this.currentIndex;
+        this.isSliding = false;
+        this.slideProgress = 0;
+        console.log(`[StoryFragments] Jumped to latest story index ${this.currentIndex}`);
+    }
+
     getSlideProgress() {
         return this.slideProgress;
     }
-    
+
     getSlideDirection() {
         return this.slideDirection;
+    }
+    /**
+     * 删除当前故事
+     */
+    deleteCurrentStory() {
+        if (this.stories.length === 0) return null;
+
+        const indexToRemove = this.currentIndex;
+
+        // 1. Remove from array
+        this.stories.splice(indexToRemove, 1);
+
+        // 2. Refresh visuals (simple reconstruction)
+        this.createStoryStars();
+
+        // 3. Adjust indices
+        if (this.currentIndex >= this.stories.length) {
+            this.currentIndex = Math.max(0, this.stories.length - 1);
+        }
+        this.targetIndex = this.currentIndex;
+
+        console.log(`[StoryFragments] Deleted story index ${indexToRemove}`);
+
+        // If needed, can add API call here to delete from backend
+
+        return this.getCurrentStory();
     }
 }
