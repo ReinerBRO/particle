@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D转3D粒子发光特效</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 300px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            transition: opacity 0.3s;
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 15px 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #4facfe;
+            text-align: center;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #4facfe;
+        }
+
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .file-upload-label {
+            display: block;
+            width: 100%;
+            padding: 12px 0;
+            background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+        }
+
+        .file-upload-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+
+        .hint {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            z-index: 20;
+            font-size: 24px;
+            pointer-events: none;
+            display: none;
+            text-shadow: 0 0 10px rgba(79, 172, 254, 0.8);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #4facfe;
+        }
+
+        /* Hide UI on mobile slightly or make it smaller */
+        @media (max-width: 600px) {
+            #ui-panel {
+                width: calc(100% - 40px);
+                bottom: 20px;
+                top: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loading">正在处理粒子...</div>
+
+    <div id="ui-panel">
+        <h1>2D 转 3D 粒子流</h1>
+
+        <div class="file-upload">
+            <label for="imageInput" class="file-upload-label">
+                <span id="uploadText">📁 选择图片</span>
+            </label>
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+
+        <div class="control-group">
+            <label>粒子密度 (采样率) <span id="val-density">2</span></label>
+            <input type="range" id="density" min="1" max="6" step="1" value="2" style="direction: rtl">
+            <div class="hint">数值越小，粒子越多 (需要高性能)</div>
+        </div>
+
+        <div class="control-group">
+            <label>粒子大小 <span id="val-size">2.0</span></label>
+            <input type="range" id="size" min="0.5" max="10.0" step="0.1" value="2.0">
+        </div>
+
+        <div class="control-group">
+            <label>3D 深度强度 <span id="val-depth">100</span></label>
+            <input type="range" id="depth" min="0" max="300" step="10" value="100">
+            <div class="hint">基于亮度的 Z 轴偏移</div>
+        </div>
+
+        <div class="control-group">
+            <label>背景剔除阈值 <span id="val-threshold">20</span></label>
+            <input type="range" id="threshold" min="0" max="255" step="5" value="20">
+            <div class="hint">过滤黑色背景/保留主体</div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <!-- Import Three.js via ES Modules -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js",
+                "three/addons/": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Variables
+        let scene, camera, renderer, controls;
+        let particles;
+        let originalImageData = null;
+        let animationId;
+
+        // UI Elements
+        const densityInput = document.getElementById('density');
+        const sizeInput = document.getElementById('size');
+        const depthInput = document.getElementById('depth');
+        const thresholdInput = document.getElementById('threshold');
+        const loadingEl = document.getElementById('loading');
+
+        // Update labels
+        const updateLabels = () => {
+            document.getElementById('val-density').innerText = densityInput.value;
+            document.getElementById('val-size').innerText = sizeInput.value;
+            document.getElementById('val-depth').innerText = depthInput.value;
+            document.getElementById('val-threshold').innerText = thresholdInput.value;
+        };
+
+        init();
+
+        function init() {
+            // 1. Scene Setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050505); // Very dark gray, almost black
+            scene.fog = new THREE.FogExp2(0x050505, 0.001); // Adds depth
+
+            // 2. Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 0, 400);
+
+            // 3. Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // 4. Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.rotateSpeed = 0.5;
+
+            // 5. Initial Placeholder Particle System
+            createPlaceholder();
+
+            // 6. Event Listeners
+            window.addEventListener('resize', onWindowResize);
+
+            // UI Listeners with debounce/throttle logic implied by direct calling
+            // For heavy operations (re-generating geometry), we only do it on change
+            densityInput.addEventListener('change', () => {
+                if (originalImageData) {
+                    // Show loading for UI feedback on heavy recalc
+                    loadingEl.style.display = 'block';
+                    setTimeout(() => {
+                        processImageToParticles(originalImageData);
+                        loadingEl.style.display = 'none';
+                    }, 50);
+                }
+                updateLabels();
+            });
+
+            thresholdInput.addEventListener('change', () => {
+                if (originalImageData) {
+                    loadingEl.style.display = 'block';
+                    setTimeout(() => {
+                        processImageToParticles(originalImageData);
+                        loadingEl.style.display = 'none';
+                    }, 50);
+                }
+                updateLabels();
+            });
+
+            depthInput.addEventListener('input', () => {
+                updateLabels();
+                // Real-time update for depth without regenerating geometry
+                if (particles) updateParticleDepth();
+            });
+
+            sizeInput.addEventListener('input', () => {
+                updateLabels();
+                if (particles) particles.material.size = parseFloat(sizeInput.value);
+            });
+
+            // File Upload
+            document.getElementById('imageInput').addEventListener('change', handleImageUpload);
+
+            animate();
+        }
+
+        function createPlaceholder() {
+            // Creates a simple demo sphere of particles initially
+            const geometry = new THREE.BufferGeometry();
+            const count = 5000;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+
+            for (let i = 0; i < count; i++) {
+                const x = (Math.random() - 0.5) * 400;
+                const y = (Math.random() - 0.5) * 400;
+                const z = (Math.random() - 0.5) * 400;
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+
+                colors[i * 3] = 0.2;
+                colors[i * 3 + 1] = 0.6;
+                colors[i * 3 + 2] = 1.0;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = createParticleMaterial();
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+        }
+
+        // --- Core Logic: Texture Generation for Glow ---
+        function createParticleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+
+            // Draw a radial gradient (soft glow)
+            const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.3)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 32, 32);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        function createParticleMaterial() {
+            return new THREE.PointsMaterial({
+                size: parseFloat(sizeInput.value),
+                vertexColors: true,
+                map: createParticleTexture(),
+                blending: THREE.AdditiveBlending, // Key for glowing effect
+                depthWrite: false, // Ensures transparency works nicely
+                transparent: true,
+                opacity: 0.9
+            });
+        }
+
+        // --- Image Handling ---
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Reset value so if user uploads same file again it triggers change
+            e.target.value = '';
+
+            loadingEl.style.display = 'block';
+            document.getElementById('uploadText').innerText = "处理中...";
+
+            const reader = new FileReader();
+
+            reader.onload = function (event) {
+                const img = new Image();
+                img.crossOrigin = "Anonymous"; // Good practice
+                img.src = event.target.result;
+
+                img.onload = function () {
+                    // Use setTimeout to allow the browser to render the "Loading" text 
+                    // before the heavy processing freezes the thread
+                    setTimeout(() => {
+                        try {
+                            // Draw to hidden canvas to extract data
+                            const canvas = document.createElement('canvas');
+                            // Resize large images to improve performance
+                            const maxDimension = 800; // Constrain longest side
+                            let scale = 1;
+
+                            if (img.width > maxDimension || img.height > maxDimension) {
+                                scale = maxDimension / Math.max(img.width, img.height);
+                            }
+
+                            canvas.width = Math.floor(img.width * scale);
+                            canvas.height = Math.floor(img.height * scale);
+
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                            originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            processImageToParticles(originalImageData);
+                            document.getElementById('uploadText').innerText = file.name;
+                        } catch (error) {
+                            console.error("Error processing image:", error);
+                            alert("图片处理失败，请尝试其他图片。");
+                            document.getElementById('uploadText').innerText = "错误";
+                        } finally {
+                            loadingEl.style.display = 'none';
+                        }
+                    }, 100);
+                }
+
+                img.onerror = function () {
+                    loadingEl.style.display = 'none';
+                    alert("无法加载图片。");
+                }
+            };
+
+            reader.onerror = function () {
+                loadingEl.style.display = 'none';
+                alert("读取文件失败。");
+            }
+
+            reader.readAsDataURL(file);
+        }
+
+        function processImageToParticles(imageData) {
+            // Remove old particles
+            if (particles) scene.remove(particles);
+
+            const width = imageData.width;
+            const height = imageData.height;
+            const data = imageData.data;
+
+            const step = Math.max(1, parseInt(densityInput.value));
+            const threshold = parseInt(thresholdInput.value);
+            const depthFactor = parseFloat(depthInput.value);
+
+            const positions = [];
+            const colors = [];
+            const baseZ = []; // Store base brightness for dynamic depth updates
+
+            // Center offsets
+            const offsetX = -width / 2;
+            const offsetY = height / 2; // Y is inverted in 3D
+
+            for (let y = 0; y < height; y += step) {
+                for (let x = 0; x < width; x += step) {
+                    const i = (y * width + x) * 4;
+
+                    // Safety check
+                    if (i >= data.length) continue;
+
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const a = data[i + 3];
+
+                    // Calculate brightness (0-255)
+                    const brightness = (0.299 * r + 0.587 * g + 0.114 * b);
+
+                    // Threshold check (skip dark pixels/transparent pixels)
+                    if (a < 50 || brightness < threshold) continue;
+
+                    // Calculate 3D Position
+                    const posX = x + offsetX;
+                    const posY = -(y - offsetY); // Invert Y for 3D coords
+                    const posZ = (brightness / 255) * depthFactor;
+
+                    positions.push(posX, posY, posZ);
+
+                    // Store brightness ratio for fast depth updates later
+                    baseZ.push(brightness / 255);
+
+                    // Color
+                    colors.push(r / 255, g / 255, b / 255);
+                }
+            }
+
+            // Check if any particles were created
+            if (positions.length === 0) {
+                console.warn("No particles created. Try lowering threshold.");
+                alert("没有生成粒子。请尝试降低'背景剔除阈值'或使用更亮的图片。");
+                return;
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geometry.userData = { baseZ: baseZ };
+
+            const material = createParticleMaterial();
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            // Reset Camera based on image size
+            // Ensure camera is far enough back to see the whole image
+            const maxDim = Math.max(width, height);
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+            cameraZ *= 1.2; // Add some padding
+
+            // Animate camera to new position for a polished feel
+            // Simply setting it here for robustness
+            camera.position.set(0, 0, cameraZ);
+            camera.lookAt(0, 0, 0);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
+
+        // --- Dynamic Updates ---
+        function updateParticleDepth() {
+            if (!particles || !particles.geometry.userData.baseZ) return;
+
+            const positions = particles.geometry.attributes.position.array;
+            const baseZ = particles.geometry.userData.baseZ;
+            const depthFactor = parseFloat(depthInput.value);
+
+            for (let i = 0; i < baseZ.length; i++) {
+                // z is at index i*3 + 2
+                positions[i * 3 + 2] = baseZ[i] * depthFactor;
+            }
+
+            particles.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // --- Standard Boilerplate ---
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            controls.update();
+
+            // Optional: Subtle rotation if idle?
+            // if (particles) particles.rotation.y += 0.001;
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+
+</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D转3D粒子发光特效</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 300px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            transition: opacity 0.3s;
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 15px 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #4facfe;
+            text-align: center;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #4facfe;
+        }
+
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .file-upload-label {
+            display: block;
+            width: 100%;
+            padding: 12px 0;
+            background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+        }
+
+        .file-upload-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+
+        .hint {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            z-index: 20;
+            font-size: 24px;
+            pointer-events: none;
+            display: none;
+            text-shadow: 0 0 10px rgba(79, 172, 254, 0.8);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #4facfe;
+        }
+
+        /* Hide UI on mobile slightly or make it smaller */
+        @media (max-width: 600px) {
+            #ui-panel {
+                width: calc(100% - 40px);
+                bottom: 20px;
+                top: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loading">正在处理粒子...</div>
+
+    <div id="ui-panel">
+        <h1>2D 转 3D 粒子流</h1>
+
+        <div class="file-upload">
+            <label for="imageInput" class="file-upload-label">
+                <span id="uploadText">📁 选择图片</span>
+            </label>
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+
+        <div class="control-group">
+            <label>粒子密度 (采样率) <span id="val-density">2</span></label>
+            <input type="range" id="density" min="1" max="6" step="1" value="2" style="direction: rtl">
+            <div class="hint">数值越小，粒子越多 (需要高性能)</div>
+        </div>
+
+        <div class="control-group">
+            <label>粒子大小 <span id="val-size">2.0</span></label>
+            <input type="range" id="size" min="0.5" max="10.0" step="0.1" value="2.0">
+        </div>
+
+        <div class="control-group">
+            <label>3D 深度强度 <span id="val-depth">100</span></label>
+            <input type="range" id="depth" min="0" max="300" step="10" value="100">
+            <div class="hint">基于亮度的 Z 轴偏移</div>
+        </div>
+
+        <div class="control-group">
+            <label>背景剔除阈值 <span id="val-threshold">20</span></label>
+            <input type="range" id="threshold" min="0" max="255" step="5" value="20">
+            <div class="hint">过滤黑色背景/保留主体</div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <!-- Import Three.js via ES Modules -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js",
+                "three/addons/": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Variables
+        let scene, camera, renderer, controls;
+        let particles;
+        let originalImageData = null;
+        let animationId;
+
+        // UI Elements
+        const densityInput = document.getElementById('density');
+        const sizeInput = document.getElementById('size');
+        const depthInput = document.getElementById('depth');
+        const thresholdInput = document.getElementById('threshold');
+        const loadingEl = document.getElementById('loading');
+
+        // Update labels
+        const updateLabels = () => {
+            document.getElementById('val-density').innerText = densityInput.value;
+            document.getElementById('val-size').innerText = sizeInput.value;
+            document.getElementById('val-depth').innerText = depthInput.value;
+            document.getElementById('val-threshold').innerText = thresholdInput.value;
+        };
+
+        init();
+
+        function init() {
+            // 1. Scene Setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050505); // Very dark gray, almost black
+            scene.fog = new THREE.FogExp2(0x050505, 0.001); // Adds depth
+
+            // 2. Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 0, 400);
+
+            // 3. Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // 4. Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.rotateSpeed = 0.5;
+
+            // 5. Initial Placeholder Particle System
+            createPlaceholder();
+
+            // 6. Event Listeners
+            window.addEventListener('resize', onWindowResize);
+
+            // UI Listeners with debounce/throttle logic implied by direct calling
+            // For heavy operations (re-generating geometry), we only do it on change
+            densityInput.addEventListener('change', () => {
+                if (originalImageData) {
+                    // Show loading for UI feedback on heavy recalc
+                    loadingEl.style.display = 'block';
+                    setTimeout(() => {
+                        processImageToParticles(originalImageData);
+                        loadingEl.style.display = 'none';
+                    }, 50);
+                }
+                updateLabels();
+            });
+
+            thresholdInput.addEventListener('change', () => {
+                if (originalImageData) {
+                    loadingEl.style.display = 'block';
+                    setTimeout(() => {
+                        processImageToParticles(originalImageData);
+                        loadingEl.style.display = 'none';
+                    }, 50);
+                }
+                updateLabels();
+            });
+
+            depthInput.addEventListener('input', () => {
+                updateLabels();
+                // Real-time update for depth without regenerating geometry
+                if (particles) updateParticleDepth();
+            });
+
+            sizeInput.addEventListener('input', () => {
+                updateLabels();
+                if (particles) particles.material.size = parseFloat(sizeInput.value);
+            });
+
+            // File Upload
+            document.getElementById('imageInput').addEventListener('change', handleImageUpload);
+
+            animate();
+        }
+
+        function createPlaceholder() {
+            // Creates a simple demo sphere of particles initially
+            const geometry = new THREE.BufferGeometry();
+            const count = 5000;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+
+            for (let i = 0; i < count; i++) {
+                const x = (Math.random() - 0.5) * 400;
+                const y = (Math.random() - 0.5) * 400;
+                const z = (Math.random() - 0.5) * 400;
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+
+                colors[i * 3] = 0.2;
+                colors[i * 3 + 1] = 0.6;
+                colors[i * 3 + 2] = 1.0;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = createParticleMaterial();
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+        }
+
+        // --- Core Logic: Texture Generation for Glow ---
+        function createParticleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+
+            // Draw a radial gradient (soft glow)
+            const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.3)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 32, 32);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        function createParticleMaterial() {
+            return new THREE.PointsMaterial({
+                size: parseFloat(sizeInput.value),
+                vertexColors: true,
+                map: createParticleTexture(),
+                blending: THREE.AdditiveBlending, // Key for glowing effect
+                depthWrite: false, // Ensures transparency works nicely
+                transparent: true,
+                opacity: 0.9
+            });
+        }
+
+        // --- Image Handling ---
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Reset value so if user uploads same file again it triggers change
+            e.target.value = '';
+
+            loadingEl.style.display = 'block';
+            document.getElementById('uploadText').innerText = "处理中...";
+
+            const reader = new FileReader();
+
+            reader.onload = function (event) {
+                const img = new Image();
+                img.crossOrigin = "Anonymous"; // Good practice
+                img.src = event.target.result;
+
+                img.onload = function () {
+                    // Use setTimeout to allow the browser to render the "Loading" text 
+                    // before the heavy processing freezes the thread
+                    setTimeout(() => {
+                        try {
+                            // Draw to hidden canvas to extract data
+                            const canvas = document.createElement('canvas');
+                            // Resize large images to improve performance
+                            const maxDimension = 800; // Constrain longest side
+                            let scale = 1;
+
+                            if (img.width > maxDimension || img.height > maxDimension) {
+                                scale = maxDimension / Math.max(img.width, img.height);
+                            }
+
+                            canvas.width = Math.floor(img.width * scale);
+                            canvas.height = Math.floor(img.height * scale);
+
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                            originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            processImageToParticles(originalImageData);
+                            document.getElementById('uploadText').innerText = file.name;
+                        } catch (error) {
+                            console.error("Error processing image:", error);
+                            alert("图片处理失败，请尝试其他图片。");
+                            document.getElementById('uploadText').innerText = "错误";
+                        } finally {
+                            loadingEl.style.display = 'none';
+                        }
+                    }, 100);
+                }
+
+                img.onerror = function () {
+                    loadingEl.style.display = 'none';
+                    alert("无法加载图片。");
+                }
+            };
+
+            reader.onerror = function () {
+                loadingEl.style.display = 'none';
+                alert("读取文件失败。");
+            }
+
+            reader.readAsDataURL(file);
+        }
+
+        function processImageToParticles(imageData) {
+            // Remove old particles
+            if (particles) scene.remove(particles);
+
+            const width = imageData.width;
+            const height = imageData.height;
+            const data = imageData.data;
+
+            const step = Math.max(1, parseInt(densityInput.value));
+            const threshold = parseInt(thresholdInput.value);
+            const depthFactor = parseFloat(depthInput.value);
+
+            const positions = [];
+            const colors = [];
+            const baseZ = []; // Store base brightness for dynamic depth updates
+
+            // Center offsets
+            const offsetX = -width / 2;
+            const offsetY = height / 2; // Y is inverted in 3D
+
+            for (let y = 0; y < height; y += step) {
+                for (let x = 0; x < width; x += step) {
+                    const i = (y * width + x) * 4;
+
+                    // Safety check
+                    if (i >= data.length) continue;
+
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const a = data[i + 3];
+
+                    // Calculate brightness (0-255)
+                    const brightness = (0.299 * r + 0.587 * g + 0.114 * b);
+
+                    // Threshold check (skip dark pixels/transparent pixels)
+                    if (a < 50 || brightness < threshold) continue;
+
+                    // Calculate 3D Position
+                    const posX = x + offsetX;
+                    const posY = -(y - offsetY); // Invert Y for 3D coords
+                    const posZ = (brightness / 255) * depthFactor;
+
+                    positions.push(posX, posY, posZ);
+
+                    // Store brightness ratio for fast depth updates later
+                    baseZ.push(brightness / 255);
+
+                    // Color
+                    colors.push(r / 255, g / 255, b / 255);
+                }
+            }
+
+            // Check if any particles were created
+            if (positions.length === 0) {
+                console.warn("No particles created. Try lowering threshold.");
+                alert("没有生成粒子。请尝试降低'背景剔除阈值'或使用更亮的图片。");
+                return;
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geometry.userData = { baseZ: baseZ };
+
+            const material = createParticleMaterial();
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            // Reset Camera based on image size
+            // Ensure camera is far enough back to see the whole image
+            const maxDim = Math.max(width, height);
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+            cameraZ *= 1.2; // Add some padding
+
+            // Animate camera to new position for a polished feel
+            // Simply setting it here for robustness
+            camera.position.set(0, 0, cameraZ);
+            camera.lookAt(0, 0, 0);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
+
+        // --- Dynamic Updates ---
+        function updateParticleDepth() {
+            if (!particles || !particles.geometry.userData.baseZ) return;
+
+            const positions = particles.geometry.attributes.position.array;
+            const baseZ = particles.geometry.userData.baseZ;
+            const depthFactor = parseFloat(depthInput.value);
+
+            for (let i = 0; i < baseZ.length; i++) {
+                // z is at index i*3 + 2
+                positions[i * 3 + 2] = baseZ[i] * depthFactor;
+            }
+
+            particles.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // --- Standard Boilerplate ---
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            controls.update();
+
+            // Optional: Subtle rotation if idle?
+            // if (particles) particles.rotation.y += 0.001;
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+
+</html>

@@ -385,16 +385,30 @@ export class PS5ControllerWebHID {
     }
 
     /**
-     * 获取麦克风音量
+     * 获取麦克风音量 (Linear RMS)
      */
     getMicLevel() {
         if (!this.micAnalyser) return 0;
 
-        const dataArray = new Uint8Array(this.micAnalyser.frequencyBinCount);
-        this.micAnalyser.getByteFrequencyData(dataArray);
+        const dataArray = new Uint8Array(this.micAnalyser.fftSize);
+        this.micAnalyser.getByteTimeDomainData(dataArray);
 
-        const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-        return average / 255;
+        let sumSquares = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            // Center is 128. Normalize to -1..1 range
+            const normalized = (dataArray[i] - 128) / 128;
+            sumSquares += normalized * normalized;
+        }
+
+        const rms = Math.sqrt(sumSquares / dataArray.length);
+
+        // Boost low levels slightly if needed, or return raw RMS
+        // RMS is usually quite small for speech, usually 0.01 - 0.5
+        // Let's amplify it a bit for usability, e.g. multiply by 3-5X but clamp at 1.0
+        // Or just return raw RMS and let the controller handle thresholds.
+        // User asked for "Linear change", so raw RMS is best.
+
+        return Math.min(rms * 5.0, 1.0); // Boost factor 5x makes normal speech around 0.3-0.6
     }
 
     /**

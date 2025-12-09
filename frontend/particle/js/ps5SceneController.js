@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import PS5ControllerWebHID from './ps5ControllerWebHID.js';
+import { ImageParticleSystem } from './imageParticleSystem.js';
 const RAD_95_DEG = 95 * (Math.PI / 180); // 95° 转换为弧度，约为 1.658
 
 const MIN_PHI = 0.9;         // 垂直角度最小值 (约 51.57°)
@@ -141,7 +142,12 @@ export class PS5SceneController {
         this.snowEffect = refs.snowEffect;
         this.storyFragments = refs.storyFragments;
         this.characters = refs.characters;
+        this.storyFragments = refs.storyFragments;
+        this.characters = refs.characters;
         this.menuManager = refs.menuManager; // Store reference
+
+        // Initialize Sky Gallery
+        this.initSkyGallery();
 
         // 保存初始相机状态
         if (this.camera && this.controls) {
@@ -328,6 +334,8 @@ export class PS5SceneController {
         // 启用陀螺仪和麦克风
         this.updateGyroscope(state, deltaTime);
         this.updateMicrophone(state, deltaTime);
+
+        this.updateSkyGallery(Date.now() * 0.001);
 
         this.cleanupCooldowns();
     }
@@ -795,240 +803,326 @@ export class PS5SceneController {
      * 更新陀螺仪（控制雪花）
      */
     updateGyroscope(state, deltaTime) {
-        const gyro = this.controller.getGyro();
-        if (!gyro) return;
-
-        // 首次校准
-        if (!this.gyroCalibrated) {
-            this.gyroBaseline = { ...gyro };
-            this.gyroCalibrated = true;
-            return;
+        if (gyro.x !== 0 && this.snowEffect) {
+            // ... (gyro logic if needed, but we focus on gallery now)
         }
-
-        // 计算摇晃强度（角速度的变化）
-        const dx = Math.abs(gyro.x - this.gyroBaseline.x);
-        const dy = Math.abs(gyro.y - this.gyroBaseline.y);
-        const dz = Math.abs(gyro.z - this.gyroBaseline.z);
-        const shakeIntensity = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-        // 超过阈值则认为在摇晃
-        if (shakeIntensity > this.options.gyroShakeThreshold) {
-            this.gyroShakeAmount = Math.min(shakeIntensity / 50, 1.5); // 归一化到0-1.5
-
-            if (this.snowEffect) {
-                this.snowEffect.setGyroShake(this.gyroShakeAmount);
-            }
-        } else {
-            // 逐渐恢复
-            this.gyroShakeAmount *= 0.95;
-            if (this.gyroShakeAmount < 0.01) this.gyroShakeAmount = 0;
-
-            if (this.snowEffect) {
-                this.snowEffect.setGyroShake(this.gyroShakeAmount);
-            }
-        }
-
-        // 更新基准线（慢速跟随）
-        this.gyroBaseline.x += (gyro.x - this.gyroBaseline.x) * 0.1;
-        this.gyroBaseline.y += (gyro.y - this.gyroBaseline.y) * 0.1;
-        this.gyroBaseline.z += (gyro.z - this.gyroBaseline.z) * 0.1;
     }
 
-    // ==================== 麦克风处理 ====================
+    // ==================== Sky Gallery (Image Particles) ====================
 
-    /**
-     * 更新麦克风（检测吹气）
-     */
-    /**
-     * 更新麦克风（检测吹气和环境音量）
-     */
-    updateMicrophone(state, deltaTime) {
-        // 假设有getMicLevel()方法
-        if (typeof this.controller.getMicLevel === 'function') {
-            const micLevel = this.controller.getMicLevel();
+    async initSkyGallery() {
+        if (!this.storyFragments || !this.scene) return;
 
-            // 1. 吹气检测 (瞬时)
-            // 检测突然的音量增加（吹气）
-            if (micLevel > this.micBlowThreshold && this.lastMicLevel < this.micBlowThreshold) {
-                this.triggerBlowEffect(micLevel);
-            }
-
-            // 2. 持续音量控制雪花强度 (Snow Intensity)
-            // 阈值设定
-            // 0.0 - 0.2: 正常 (1.0)
-            // 0.2 - 0.5: 微风 (1.5)
-            // 0.5 - 0.8:大雪 (2.5)
-            // 0.8 - 1.0: 暴风雪 (4.0)
-
-            let targetIntensity = 1.0;
-
-            if (micLevel > 0.8) {
-                targetIntensity = 4.0; // Max
-            } else if (micLevel > 0.5) {
-                targetIntensity = 2.5; // High
-            } else if (micLevel > 0.2) {
-                targetIntensity = 1.5; // Medium
-            } else {
-                targetIntensity = 1.0; // Normal
-            }
-
-            // 平滑过渡 / 防抖
-            // 只有当目标强度与当前强度差异较大，且持续一段时间（简单起见，这里使用直接设置但带平滑或者简单状态锁定）
-            // 由于setSnowIntensity内部直接修改velocity，频繁调用可能消耗性能或视觉抖动
-            // 我们检查是否需要更新，并添加简单的滞后(hysteresis)防止临界值闪烁
-
-            if (Math.abs(targetIntensity - this.currentSnowIntensity) > 0.1) {
-                // 如果是增加强度，立即响应；如果是降低，稍微延迟响应（这里简化为每帧0.05的逼近，创造平滑效果）
-                if (targetIntensity > this.currentSnowIntensity) {
-                    this.currentSnowIntensity = targetIntensity;
-                } else {
-                    // 缓慢下降
-                    this.currentSnowIntensity += (targetIntensity - this.currentSnowIntensity) * 0.05;
-                }
-
-                if (this.snowEffect) {
-                    this.snowEffect.setSnowIntensity(this.currentSnowIntensity);
+        // Wait a moment for stories to load (or check periodically)
+        // Ideally storyFragments should have a callback or promise, but we'll doing a simple check loop
+        let attempts = 0;
+        const checkStories = setInterval(async () => {
+            attempts++;
+            if (this.storyFragments.stories.length > 0 || attempts > 20) {
+                clearInterval(checkStories);
+                if (this.storyFragments.stories.length > 0) {
+                    await this.createGalleryParticles();
                 }
             }
-
-            this.lastMicLevel = micLevel;
-        }
+        }, 500);
     }
 
-    /**
-     * 触发吹气效果
-     */
-    triggerBlowEffect(strength) {
-        if (this.snowEffect && typeof this.snowEffect.triggerBlowEffect === 'function') {
-            this.snowEffect.triggerBlowEffect(strength);
-            this.vibrate({ left: 0.3, right: 0.3, duration: 300 });
-            console.log('[PS5] Blow effect triggered, strength:', strength.toFixed(2));
-        }
-    }
+    async createGalleryParticles() {
+        console.log('[PS5] Creating Sky Gallery Particles...');
+        this.galleryGroup = new THREE.Group();
+        this.scene.add(this.galleryGroup);
 
-    // ==================== 系统按键处理 ====================
+        // Tilt the whole orbit ring by 45 degrees
+        // Tilted around X axis so it looks like a ring around the top-back
+        this.galleryGroup.rotation.x = -Math.PI / 4;
+        this.galleryGroup.rotation.y = -Math.PI / 6; // Slight Y twist for better angle
 
-    /**
-     * SHARE键 - 截图
-     */
-    handleShare() {
-        this.takeScreenshot();
-        console.log('[PS5] Screenshot taken');
-    }
+        const stories = this.storyFragments.stories.slice(-6).reverse(); // Get latest 6
+        const radius = 6.0; // Orbit radius
+        const count = stories.length;
 
-    /**
-     * OPTIONS键 - 菜单
-     */
-    handleOptions() {
-        // TODO: 实现菜单功能
-        console.log('[PS5] Menu toggled');
-    }
+        this.particleSystems = [];
 
-    /**
-     * 截图功能
-     */
-    takeScreenshot() {
-        if (!this.scene) return;
+        for (let i = 0; i < count; i++) {
+            const story = stories[i];
+            // Use story image or fallback
+            // Assuming story has .imageUrl property. If local path, ensure it loads.
+            // If empty, maybe skip or use default?
+            let imgUrl = story.imageUrl;
+            if (!imgUrl || imgUrl === "") {
+                // Placeholder if no image
+                // imgUrl = 'assets/textures/snowflake.png'; // Example fallback
+                continue;
+            }
 
-        const canvas = document.querySelector('canvas');
-        if (canvas) {
-            canvas.toBlob((blob) => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `screenshot_${Date.now()}.png`;
-                a.click();
-                URL.revokeObjectURL(url);
+            const sys = new ImageParticleSystem({
+                size: 2.5,
+                density: 120,
+                particleSize: 0.04
             });
+
+            // Calculate position on the circle
+            const angle = (i / count) * Math.PI * 2;
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+
+            sys.position.set(x, y, 0); // Z is 0 because we rotated the group
+
+            // Orient particles to face center (or camera?)
+            // Facing center makes them look like a cohesive ring
+            sys.rotation.z = angle - Math.PI / 2;
+            // Also rotate to be upright relative to the view?
+            // Actually, simply facing Z-up in the group's local space might be enough
+            sys.lookAt(0, 0, 0);
+
+            this.galleryGroup.add(sys);
+            this.particleSystems.push(sys);
+
+            // Load asynchronously
+            sys.loadImage(imgUrl).catch(e => console.warn('Failed to load particle image', e));
         }
     }
 
-    // ==================== 反馈系统 ====================
+    updateSkyGallery(time) {
+        if (!this.galleryGroup) return;
 
-    /**
-     * 震动反馈
-     */
-    vibrate(pattern) {
-        if (!this.controller) return;
-        if (!pattern) return;
+        // Rotate the entire gallery slowly
+        this.galleryGroup.rotation.z += 0.0005;
 
-        if (pattern.repeat) {
-            // 重复震动（如双击）
-            for (let i = 0; i < pattern.repeat; i++) {
-                setTimeout(() => {
-                    this.controller.vibrate(pattern.left, pattern.right, pattern.duration);
-                }, i * (pattern.duration + pattern.gap));
+        // Update individual particle animations
+        if (this.particleSystems) {
+            this.particleSystems.forEach(sys => sys.update(time));
+        }
+    }
+
+
+    // 首次校准
+    if(!this.gyroCalibrated) {
+        this.gyroBaseline = { ...gyro };
+        this.gyroCalibrated = true;
+        return;
+    }
+
+    // 计算摇晃强度（角速度的变化）
+    const dx = Math.abs(gyro.x - this.gyroBaseline.x);
+    const dy = Math.abs(gyro.y - this.gyroBaseline.y);
+    const dz = Math.abs(gyro.z - this.gyroBaseline.z);
+    const shakeIntensity = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // 超过阈值则认为在摇晃
+    if(shakeIntensity > this.options.gyroShakeThreshold) {
+    this.gyroShakeAmount = Math.min(shakeIntensity / 50, 1.5); // 归一化到0-1.5
+
+    if (this.snowEffect) {
+        this.snowEffect.setGyroShake(this.gyroShakeAmount);
+    }
+} else {
+    // 逐渐恢复
+    this.gyroShakeAmount *= 0.95;
+    if (this.gyroShakeAmount < 0.01) this.gyroShakeAmount = 0;
+
+    if (this.snowEffect) {
+        this.snowEffect.setGyroShake(this.gyroShakeAmount);
+    }
+}
+
+// 更新基准线（慢速跟随）
+this.gyroBaseline.x += (gyro.x - this.gyroBaseline.x) * 0.1;
+this.gyroBaseline.y += (gyro.y - this.gyroBaseline.y) * 0.1;
+this.gyroBaseline.z += (gyro.z - this.gyroBaseline.z) * 0.1;
+    }
+
+// ==================== 麦克风处理 ====================
+
+/**
+ * 更新麦克风（检测吹气）
+ */
+/**
+ * 更新麦克风（检测吹气和环境音量）
+ */
+updateMicrophone(state, deltaTime) {
+    // 假设有getMicLevel()方法
+    if (typeof this.controller.getMicLevel === 'function') {
+        const micLevel = this.controller.getMicLevel();
+        // console.log(`[Mic] Level: ${micLevel.toFixed(3)}`);
+
+        // 1. 吹气检测 (瞬时)
+        // 检测突然的音量增加（吹气）
+        if (micLevel > this.micBlowThreshold && this.lastMicLevel < this.micBlowThreshold) {
+            this.triggerBlowEffect(micLevel);
+        }
+
+        // 2. 持续音量控制雪花强度 (Snow Intensity) - 线性应变
+        // 线性映射: Mic Level (0.05 - 0.8) -> Intensity (1.0 - 5.0)
+        const minMic = 0.05; // 噪音底噪
+        const maxMic = 0.8;  // 预期最大值
+        const minIntensity = 1.0; // 正常
+        const maxIntensity = 5.0; // 暴风雪+
+
+        // 归一化输入
+        let normalizedMic = (micLevel - minMic) / (maxMic - minMic);
+        normalizedMic = Math.max(0, Math.min(1, normalizedMic)); // 限制在 0-1
+
+        // 线性计算目标强度
+        const targetIntensity = minIntensity + normalizedMic * (maxIntensity - minIntensity);
+
+        // 平滑过渡 / 防抖
+        // 只有当目标强度与当前强度差异较大，且持续一段时间（简单起见，这里使用直接设置但带平滑或者简单状态锁定）
+        // 由于setSnowIntensity内部直接修改velocity，频繁调用可能消耗性能或视觉抖动
+        // 我们检查是否需要更新，并添加简单的滞后(hysteresis)防止临界值闪烁
+
+        if (Math.abs(targetIntensity - this.currentSnowIntensity) > 0.1) {
+            // 如果是增加强度，立即响应；如果是降低，稍微延迟响应（这里简化为每帧0.05的逼近，创造平滑效果）
+            if (targetIntensity > this.currentSnowIntensity) {
+                this.currentSnowIntensity = targetIntensity;
+            } else {
+                // 缓慢下降
+                this.currentSnowIntensity += (targetIntensity - this.currentSnowIntensity) * 0.05;
             }
-        } else {
-            this.controller.vibrate(pattern.left, pattern.right, pattern.duration);
-        }
-    }
 
-    /**
-     * 设置LED颜色
-     */
-    setLEDColor(color) {
-        if (!this.controller) return;
-        this.controller.setLED(color.r, color.g, color.b);
-    }
-
-    /**
-     * LED闪烁
-     */
-    flashLED(color, duration) {
-        const originalColor = LED_COLORS.default;
-        this.setLEDColor(color);
-
-        setTimeout(() => {
-            this.setLEDColor(originalColor);
-        }, duration);
-    }
-
-    // ==================== 防抖工具 ====================
-
-    /**
-     * 检查按键是否在冷却中
-     */
-    isButtonOnCooldown(buttonName) {
-        return this.buttonCooldowns[buttonName] && Date.now() < this.buttonCooldowns[buttonName];
-    }
-
-    /**
-     * 设置按键冷却时间
-     */
-    setButtonCooldown(buttonName) {
-        this.buttonCooldowns[buttonName] = Date.now() + this.options.buttonDebounce;
-    }
-
-    /**
-     * 清理过期的冷却时间
-     */
-    cleanupCooldowns() {
-        const now = Date.now();
-        for (const [key, time] of Object.entries(this.buttonCooldowns)) {
-            if (time < now) {
-                delete this.buttonCooldowns[key];
+            if (this.snowEffect) {
+                this.snowEffect.setSnowIntensity(this.currentSnowIntensity);
             }
         }
+
+        this.lastMicLevel = micLevel;
     }
+}
 
-    // ==================== 工具函数 ====================
-
-    /**
-     * 缓动函数
-     */
-    easeInOutCubic(t) {
-        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+/**
+ * 触发吹气效果
+ */
+triggerBlowEffect(strength) {
+    if (this.snowEffect && typeof this.snowEffect.triggerBlowEffect === 'function') {
+        this.snowEffect.triggerBlowEffect(strength);
+        this.vibrate({ left: 0.3, right: 0.3, duration: 300 });
+        console.log('[PS5] Blow effect triggered, strength:', strength.toFixed(2));
     }
+}
 
-    /**
-     * 断开连接
-     */
-    disconnect() {
-        if (this.controller) {
-            this.controller.disconnect();
+// ==================== 系统按键处理 ====================
+
+/**
+ * SHARE键 - 截图
+ */
+handleShare() {
+    this.takeScreenshot();
+    console.log('[PS5] Screenshot taken');
+}
+
+/**
+ * OPTIONS键 - 菜单
+ */
+handleOptions() {
+    // TODO: 实现菜单功能
+    console.log('[PS5] Menu toggled');
+}
+
+/**
+ * 截图功能
+ */
+takeScreenshot() {
+    if (!this.scene) return;
+
+    const canvas = document.querySelector('canvas');
+    if (canvas) {
+        canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `screenshot_${Date.now()}.png`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    }
+}
+
+// ==================== 反馈系统 ====================
+
+/**
+ * 震动反馈
+ */
+vibrate(pattern) {
+    if (!this.controller) return;
+    if (!pattern) return;
+
+    if (pattern.repeat) {
+        // 重复震动（如双击）
+        for (let i = 0; i < pattern.repeat; i++) {
+            setTimeout(() => {
+                this.controller.vibrate(pattern.left, pattern.right, pattern.duration);
+            }, i * (pattern.duration + pattern.gap));
+        }
+    } else {
+        this.controller.vibrate(pattern.left, pattern.right, pattern.duration);
+    }
+}
+
+/**
+ * 设置LED颜色
+ */
+setLEDColor(color) {
+    if (!this.controller) return;
+    this.controller.setLED(color.r, color.g, color.b);
+}
+
+/**
+ * LED闪烁
+ */
+flashLED(color, duration) {
+    const originalColor = LED_COLORS.default;
+    this.setLEDColor(color);
+
+    setTimeout(() => {
+        this.setLEDColor(originalColor);
+    }, duration);
+}
+
+// ==================== 防抖工具 ====================
+
+/**
+ * 检查按键是否在冷却中
+ */
+isButtonOnCooldown(buttonName) {
+    return this.buttonCooldowns[buttonName] && Date.now() < this.buttonCooldowns[buttonName];
+}
+
+/**
+ * 设置按键冷却时间
+ */
+setButtonCooldown(buttonName) {
+    this.buttonCooldowns[buttonName] = Date.now() + this.options.buttonDebounce;
+}
+
+/**
+ * 清理过期的冷却时间
+ */
+cleanupCooldowns() {
+    const now = Date.now();
+    for (const [key, time] of Object.entries(this.buttonCooldowns)) {
+        if (time < now) {
+            delete this.buttonCooldowns[key];
         }
     }
+}
+
+// ==================== 工具函数 ====================
+
+/**
+ * 缓动函数
+ */
+easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/**
+ * 断开连接
+ */
+disconnect() {
+    if (this.controller) {
+        this.controller.disconnect();
+    }
+}
 }
 
 export default PS5SceneController;

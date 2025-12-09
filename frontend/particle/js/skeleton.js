@@ -972,6 +972,31 @@ class AuraCharacter {
     }
 
     /**
+     * 显示故事UI
+     */
+    showStoryUI(story) {
+        const poemContainer = document.getElementById('poem-container');
+        const poemBg = document.getElementById('poem-bg');
+        const poemTextElement = document.getElementById('poem-text');
+        const userTextElement = document.getElementById('user-text');
+
+        if (poemContainer && poemTextElement && story) {
+            if (userTextElement) {
+                userTextElement.textContent = story.userText || "...";
+            }
+            poemTextElement.textContent = story.poemText || "";
+
+            // Dynamic Font Selection based on Story ID
+            // Reset classes (keep only basic state)
+            poemContainer.className = 'show';
+
+            // Randomly assign font (or based on ID hash)
+            const id = story.id || Math.floor(Math.random() * 100);
+            const fonts = ['font-serif', 'font-sans', 'font-calligraphy', 'font-elegant'];
+            const fontClass = fonts[id % fonts.length];
+
+            // Add font class only
+            poemContainer.classList.add(fontClass);
 
             // Set Background
             if (story.imageUrl) {
